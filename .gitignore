@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode / Swift / iOS
+DerivedData/
+build/
+.build/
+
+# User-specific Xcode metadata
+*.xcuserstate
+*.xcuserdatad
+*.xcscmblueprint
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# Swift Package Manager artifacts
+/.swiftpm/
+
+# Cursor IDE
+# Keep Cursor directory in version control (do not ignore either `./cursor/` or `.cursor/`).
+
