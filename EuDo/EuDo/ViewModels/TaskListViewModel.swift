@@ -81,6 +81,24 @@ struct TaskListViewModel {
         save()
     }
 
+    func toggleCompletion(uri: String, referenceDate: Date) {
+        guard let task = task(for: uri) else { return }
+        let bounds = TaskItem.dayBounds(for: referenceDate)
+        guard task.expiresAt >= bounds.start, task.expiresAt <= bounds.end else { return }
+        guard task.state == .inProgress || task.state == .completed else { return }
+
+        let now = Date()
+        if task.state == .completed {
+            task.state = .inProgress
+            task.completedAt = nil
+        } else {
+            task.state = .completed
+            task.completedAt = now
+        }
+        task.lastUpdatedAt = now
+        save()
+    }
+
     func softDelete(uri: String) {
         guard let task = task(for: uri) else { return }
         let now = Date()

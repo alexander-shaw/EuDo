@@ -13,11 +13,18 @@ struct InsertGap: View {
 
     var body: some View {
         Button(action: action) {
-            Rectangle()
-                .fill(.clear)
-                .frame(minHeight: 30, maxHeight: expands ? .infinity : 30)
-                .contentShape(Rectangle())
+            Group {
+                if expands {
+                    Spacer(minLength: 30)
+                } else {
+                    Color.clear
+                        .frame(height: 30)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: expands ? .infinity : nil)
     }
 }

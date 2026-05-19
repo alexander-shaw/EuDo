@@ -58,7 +58,7 @@ struct TaskListView: View {
             ZStack(alignment: .bottomTrailing) {
                 GeometryReader { geometry in
                     ScrollView(.vertical, showsIndicators: false) {
-                        LazyVStack(spacing: 0) {
+                        VStack(spacing: 0) {
                             if dayItems.isEmpty {
                                 EmptyListView(message: emptyListMessage) {
                                     presentCreate(after: nil)
@@ -71,22 +71,57 @@ struct TaskListView: View {
                                 }
 
                                 ForEach(Array(dayItems.enumerated()), id: \.element.objectID) { index, task in
-                                    TaskRow(task: task)
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            presentEdit(for: task)
-                                        }
-                                        .onDrag {
-                                            return NSItemProvider(object: viewModel.taskURI(for: task) as NSString)
-                                        }
-                                        .dropDestination(for: String.self) { droppedItems, _ in
-                                            guard let uri = droppedItems.first else { return false }
+                                    TaskRow(
+                                        task: task,
+                                        referenceDate: timeVM.currentDateTime,
+                                        onToggle: {
                                             withAnimation {
-                                                viewModel.reorderTask(uri: uri, insertAfterIndex: index, existingItems: Array(dayItems))
+                                                viewModel.toggleCompletion(uri: viewModel.taskURI(for: task), referenceDate: timeVM.currentDateTime)
                                             }
-                                            endDragSession()
-                                            return true
                                         }
+                                    )
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        presentEdit(for: task)
+                                    }
+                                    .contextMenu {
+                                        Button {
+                                            presentEdit(for: task)
+                                        } label: {
+                                            Label("Edit", systemImage: "pencil")
+                                        }
+
+                                        Button {
+                                            withAnimation {
+                                                viewModel.toggleCompletion(uri: viewModel.taskURI(for: task), referenceDate: timeVM.currentDateTime)
+                                            }
+                                        } label: {
+                                            if task.state == .completed {
+                                                Label("Mark In Progress", systemImage: "arrow.uturn.backward.circle")
+                                            } else {
+                                                Label("Mark Completed", systemImage: "checkmark.circle")
+                                            }
+                                        }
+
+                                        Button(role: .destructive) {
+                                            withAnimation {
+                                                viewModel.softDelete(uri: viewModel.taskURI(for: task))
+                                            }
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                                    .onDrag {
+                                        return NSItemProvider(object: viewModel.taskURI(for: task) as NSString)
+                                    }
+                                    .dropDestination(for: String.self) { droppedItems, _ in
+                                        guard let uri = droppedItems.first else { return false }
+                                        withAnimation {
+                                            viewModel.reorderTask(uri: uri, insertAfterIndex: index, existingItems: Array(dayItems))
+                                        }
+                                        endDragSession()
+                                        return true
+                                    }
 
                                     InsertGap(expands: index == dayItems.count - 1) {
                                         presentCreate(after: index)

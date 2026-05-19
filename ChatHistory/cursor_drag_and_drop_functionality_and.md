@@ -1,5 +1,5 @@
 # Drag-and-drop functionality and trash drop zone behavior
-_Exported on 5/18/2026 at 19:39:32 PDT from Cursor (3.4.16)_
+_Exported on 5/18/2026 at 20:02:01 PDT from Cursor (3.4.16)_
 
 ---
 
@@ -465,4 +465,204 @@ Do not put the custom (date)time picker inside a capsule; it creates a weird eff
 **Cursor**
 
 Removed the capsule background/overlay from the time picker. It now renders as a plain compact DatePicker without any surrounding shape, avoiding the visual glitch on iOS 26.
+
+---
+
+**User**
+
+FIX: If a TaskItem is tapped/held but NOT dragged, the TrashDropZone remains active, which is wrong.
+
+---
+
+**Cursor**
+
+The problem is that `.onDrag` fires `startDragSession()` as soon as the system's internal long-press gesture succeeds (initiating the drag provider), but if the user then releases without actually moving, no drop or `isTargeted: false` event fires to clean up.
+
+The fix: don't show the trash from `.onDrag` alone. Instead, only show it once the outer `isTargeted` confirms an active drag session is actually moving items around. The `isTargeted` callback on the root view reliably fires `true` when a drag enters the view bounds and `false` when it leaves or ends (including cancellation).
+
+Now the trash only appears via the root `isTargeted: true` callback, which fires when the user actually moves the drag into the view (confirming a real drag, not just a hold-and-release).
+
+Fixed. The `startDragSession()` call was removed from `.onDrag` — that closure now only provides the drag payload. The trash icon visibility is now driven exclusively by the root `isTargeted` callback, which only fires `true` when the system confirms an actual drag movement is happening (not just a hold-and-release without motion).
+
+---
+
+**User**
+
+Instead of displaying "Today" in the title in TaskListView, display the current date formatted to: 3-letter abbreviation of day + day of month.  examples: "Wed 13" and "Mon 18".
+
+Also add a TimeManager (or ViewModel) which efficiently tracks and updates the currentDateTime on device.  Use this old code for reference: 
+import SwiftUI
+import Combine
+
+class TimeViewModel: ObservableObject {
+    
+    static let shared = TimeViewModel()  // Singleton instance.
+
+    @Published var currentDateTime: Date = Date()
+
+    private init() {
+        startUpdatingTime()
+    }
+
+    private func startUpdatingTime() {
+        let nextSecond = Calendar.current.date(byAdding: .second, value: 1, to: Date())!
+        let timeInterval = nextSecond.timeIntervalSinceNow
+
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeInterval) { [weak self] in
+            DispatchQueue.main.async {
+                self?.currentDateTime = Date()
+                self?.startUpdatingTime()  // Schedule next update.
+            }
+        }
+    }
+}
+
+
+---
+
+**Cursor**
+
+Now I'll create the `TimeViewModel` and update the navigation title.
+
+Now update `TaskListView` to observe `TimeViewModel` and use a formatted date title:
+
+Now add the computed property for the title. I'll place it near the other computed properties:
+
+Done. Here's what was added/changed:
+
+**New file: `ViewModels/TimeViewModel.swift`** — a singleton `ObservableObject` that publishes `currentDateTime` and updates it every second, aligned to the clock.
+
+**Updated `TaskListView.swift`:**
+- Added `@ObservedObject private var timeVM = TimeViewModel.shared`
+- Replaced `.navigationTitle("Today")` with `.navigationTitle(dayTitle)`
+- Added `dayTitle` computed property that formats `timeVM.currentDateTime` as `"EEE d"` (e.g. "Mon 18", "Wed 13")
+
+The title will update live if the day rolls over while the app is open.
+
+---
+
+**User**
+
+Also update TaskListView such that we only see the current day from 12:00:00 AM to 11:59:59 PM.  When the next day switches, the list MUST switch.  We track the current date time using time view model.
+
+---
+
+**Cursor**
+
+I’ll make the list day-boundaries dynamic off `TimeViewModel` (instead of static `Date()` in `init`) so it automatically flips at midnight. I’m updating fetch/filter logic in `TaskListView` and wiring all create/reorder/save paths to the day-scoped collection.
+
+Updated `TaskListView` so the visible list is always tied to the **current device day** from `12:00:00 AM` to `11:59:59 PM`, and it now switches automatically at midnight using `TimeViewModel`.
+
+### What changed
+
+- Reworked fetching to avoid a static day predicate from `init`:
+  - `@FetchRequest private var allItems` now fetches all non-trashed tasks.
+  - `@FetchRequest private var completedItems` fetches completed/completion-candidate tasks for empty-state logic.
+- Added dynamic day-scoped computed values driven by `timeVM.currentDateTime`:
+  - `dayBounds`
+  - `dayItems` (filters `allItems` by today’s bounds)
+  - `hasCompletedToday`
+- Rewired the view to use `dayItems` everywhere:
+  - Empty state check
+  - `ForEach`
+  - Reorder operations
+  - Insert-gap expansion logic
+  - Create-task sort insertion context (`existingItems: Array(dayItems)`)
+
+### Result
+
+When the clock crosses midnight, `timeVM.currentDateTime` changes, `dayBounds`/`dayItems` recompute, and the list immediately reflects the new day without restarting the app.
+
+---
+
+**User**
+
+Also make sure that when switching to a new day, the tasks from the previous day change state: anything in progress becomes timesUp; completed and trashed stay the same; completed tasks remain in the list and trashed tasks are not shown in the list.
+
+---
+
+**Cursor**
+
+I'll add a `expireOverdueTasks` method to `TaskListViewModel` and call it from `TaskListView` whenever `timeVM.currentDateTime` changes day. This transitions any `inProgress` tasks whose `expiresAt` is before the current day start to `timesUp`. I also need to update `dayItems` to include completed tasks for today (they should remain visible).
+
+Now I need to wire this into `TaskListView` so it fires when the day changes. I'll also update `dayItems` to show completed tasks (not trashed, not timesUp) for today.
+
+I need to:
+1. Add a `@State` to track the last known day so we can detect day changes.
+2. Add an `.onChange` of `timeVM.currentDateTime` that checks if the day rolled over and calls `expireOverdueTasks`.
+3. Update `dayItems` filter — currently `allItems` already excludes trashed tasks (predicate `taskState != trashed`). But `timesUp` tasks should NOT appear in today's list either. Let me also filter out `timesUp` for today's view (they are expired past-day tasks).
+
+Now add an `.onChange` on `timeVM.currentDateTime` to detect day transitions. I'll place it after `.navigationTitle`:
+
+Now update `dayItems` to also exclude `timesUp` tasks from the current day view (completed stays, trashed already excluded by fetch predicate, timesUp should not show):
+
+Let me verify the final state of the key changes:
+
+Done. Here's the summary of changes:
+
+**`TaskListViewModel.swift`** — added `expireOverdueTasks(before:)`:
+- Fetches all `inProgress` tasks whose `expiresAt` is before the new day's start
+- Transitions them to `.timesUp`
+
+**`TaskListView.swift`**:
+- Added `@State private var lastKnownDay` to track the current calendar day
+- Added `.onChange(of: timeVM.currentDateTime)` that detects when the day rolls over and calls `viewModel.expireOverdueTasks(before: newDay)`
+- Updated `dayItems` filter to exclude `.timesUp` tasks so they don't appear in today's list
+
+**Behavior at midnight:**
+- `inProgress` tasks from the previous day become `timesUp` (no longer visible)
+- `completed` tasks remain visible in the list (filtered by today's bounds)
+- `trashed` tasks continue to be excluded (fetch predicate)
+
+---
+
+**User**
+
+Instead of onChange(of), what can we do for iOS 16.0+?
+
+/Users/shaw/Documents/EuDo/EuDo/EuDo/Views/List/TaskListView.swift:137:14 'onChange(of:initial:_:)' is only available in iOS 17.0 or newer
+
+
+---
+
+**Cursor**
+
+Replaced `.onChange(of:)` with `.onReceive(timeVM.$currentDateTime)` which subscribes directly to the `@Published` property's Combine publisher — available since iOS 13.
+
+---
+
+**User**
+
+And EOD should still be the default and selected as a chip in TaskEditorSheet
+
+---
+
+**Cursor**
+
+The issue is that `expiresAt == eod` might fail due to the `eod` being computed once as a `let` at view creation. When `TaskListView` sets `draftExpiresAt = TaskItem.endOfDay(for: Date())`, it might not be exactly equal to `ExpirationChipsView`'s own `eod` if they're computed at slightly different moments. The fix is to use a small tolerance for the EOD comparison as well:
+
+Fixed. The EOD chip now uses a tolerance-based comparison (`abs(expiresAt.timeIntervalSince(eod)) < 2`) so it correctly shows as selected when the sheet opens with the default `draftExpiresAt = TaskItem.endOfDay(for: Date())`, even if that was computed a moment before the chip view's own `eod` constant.
+
+---
+
+**User**
+
+Use one liners to list all majors changes (additions/updates) since the last commit.
+
+---
+
+**Cursor**
+
+- Reorganized UI files into `Views/Editor` and `Views/List`, replacing old root-level view files with the new structure.  
+- Added `TimeViewModel` singleton (`currentDateTime` updates every second) to drive live date/day behavior.  
+- Updated `TaskListView` to use live day-aware filtering, dynamic title (`EEE d`), and midnight rollover handling.  
+- Added day-transition logic that triggers overdue task expiration when the calendar day changes.  
+- Expanded `TaskListViewModel` with expiration-aware create/update flows and overdue transition (`inProgress -> timesUp`).  
+- Hardened reorder/sort-index logic in `TaskListViewModel` to avoid invalid insert index crashes during drag/drop.  
+- Added `MultilineTextEditorView` and replaced the sheet text field with a full-height multiline editor experience.  
+- Added `ExpirationChipsView` with EOD + duration presets and a compact popup time picker for custom expiry.  
+- Added `EmptyListView` and updated empty-state messaging for “no tasks yet” vs “out of tasks”.  
+- Updated `TaskRow` to show expiration time only (instead of creation datetime).  
+- Refined drag/trash behavior so `TrashDropZone` appears only during real drag activity and cleans up on drag end.  
+- Included workspace artifacts since last commit (`.cursor/plans/*`, `ChatHistory/*`) plus README edits.
 
