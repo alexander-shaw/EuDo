@@ -10,23 +10,25 @@ import SwiftUI
 struct TaskEditorSheet: View {
     let title: String
     @Binding var name: String
+    @Binding var expiresAt: Date
     var onCancel: () -> Void
     var onSave: () -> Void
-    @FocusState private var isNameFocused: Bool
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading) {
-                TextField("Task name", text: $name)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($isNameFocused)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 24)
+            VStack(spacing: 0) {
+                MultilineTextEditorView(
+                    text: $name,
+                    placeholder: "New task",
+                    isFocused: true
+                )
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-                Spacer()
+                ExpirationChipsView(expiresAt: $expiresAt)
+                    .padding(.vertical, 12)
             }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel", action: onCancel)
@@ -35,9 +37,6 @@ struct TaskEditorSheet: View {
                     Button("Save", action: onSave)
                         .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-            }
-            .onAppear {
-                isNameFocused = true
             }
         }
     }

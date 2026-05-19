@@ -14,7 +14,7 @@ struct TaskRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(task.name)
                 .font(.headline)
-            Text(task.createdAt, formatter: dateFormatter)
+            Text(task.expiresAt, formatter: timeFormatter)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -25,9 +25,9 @@ struct TaskRow: View {
     }
 }
 
-private let dateFormatter: DateFormatter = {
+private let timeFormatter: DateFormatter = {
     let formatter = DateFormatter()
-    formatter.dateStyle = .short
-    formatter.timeStyle = .medium
+    formatter.dateStyle = .none
+    formatter.timeStyle = .short
     return formatter
 }()

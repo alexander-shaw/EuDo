@@ -8,13 +8,14 @@
 import SwiftUI
 
 struct InsertGap: View {
+    var expands: Bool = false
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Rectangle()
                 .fill(.clear)
-                .frame(height: 30)
+                .frame(minHeight: 30, maxHeight: expands ? .infinity : 30)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

@@ -11,12 +11,12 @@ import CoreData
 struct TaskListViewModel {
     let viewContext: NSManagedObjectContext
 
-    func createTask(name: String, insertAfterIndex: Int?, existingItems: [TaskItem]) {
+    func createTask(name: String, expiresAt: Date, insertAfterIndex: Int?, existingItems: [TaskItem]) {
         let now = Date()
         let newItem = TaskItem(context: viewContext)
         newItem.name = name
         newItem.createdAt = now
-        newItem.expiresAt = TaskItem.endOfDay(for: now)
+        newItem.expiresAt = expiresAt
         newItem.lastUpdatedAt = now
         newItem.deletedAt = TaskItem.endOfDay(for: now)
         newItem.state = .inProgress
@@ -24,9 +24,10 @@ struct TaskListViewModel {
         save()
     }
 
-    func updateTask(uri: String, name: String) {
+    func updateTask(uri: String, name: String, expiresAt: Date) {
         guard let task = task(for: uri) else { return }
         task.name = name
+        task.expiresAt = expiresAt
         task.lastUpdatedAt = Date()
         save()
     }
@@ -46,8 +47,37 @@ struct TaskListViewModel {
             adjustedInsertAfter = insertAfterIndex - 1
         }
 
-        draggedTask.sortOrder = Self.sortOrder(insertAfter: adjustedInsertAfter, in: sortedItems)
+        let safeInsertAfter: Int?
+        if sortedItems.isEmpty {
+            safeInsertAfter = nil
+        } else if let adjustedInsertAfter {
+            if adjustedInsertAfter < 0 {
+                safeInsertAfter = nil
+            } else {
+                safeInsertAfter = min(adjustedInsertAfter, sortedItems.count - 1)
+            }
+        } else {
+            safeInsertAfter = nil
+        }
+
+        draggedTask.sortOrder = Self.sortOrder(insertAfter: safeInsertAfter, in: sortedItems)
         draggedTask.lastUpdatedAt = Date()
+        save()
+    }
+
+    func expireOverdueTasks(before dayStart: Date) {
+        let request = TaskItem.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "taskState == %d AND expiresAt < %@",
+            Int(TaskState.inProgress.rawValue),
+            dayStart as NSDate
+        )
+        guard let overdue = try? viewContext.fetch(request), !overdue.isEmpty else { return }
+        let now = Date()
+        for task in overdue {
+            task.state = .timesUp
+            task.lastUpdatedAt = now
+        }
         save()
     }
 
@@ -88,6 +118,10 @@ struct TaskListViewModel {
         guard !items.isEmpty else { return 0 }
 
         guard let index else {
+            return items[0].sortOrder - 1
+        }
+
+        guard index >= 0 else {
             return items[0].sortOrder - 1
         }
 
