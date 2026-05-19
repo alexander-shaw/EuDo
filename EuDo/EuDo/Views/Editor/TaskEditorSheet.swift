@@ -51,6 +51,7 @@ struct TaskEditorSheet: View {
                 ExpirationChipsView(expiresAt: $expiresAt)
                     .padding(.vertical, AppSpacing.small)
             }
+            .background(Color.backgroundColor.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
         }
     }

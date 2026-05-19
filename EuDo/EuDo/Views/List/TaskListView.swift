@@ -40,9 +40,9 @@ struct TaskListView: View {
         )
         _allItems = FetchRequest(
             sortDescriptors: [
-                NSSortDescriptor(keyPath: \TaskItem.sortOrder, ascending: true),
                 NSSortDescriptor(keyPath: \TaskItem.taskState, ascending: true),
                 NSSortDescriptor(keyPath: \TaskItem.expiresAt, ascending: true),
+                NSSortDescriptor(keyPath: \TaskItem.sortOrder, ascending: true),
                 NSSortDescriptor(keyPath: \TaskItem.createdAt, ascending: true)
             ],
             animation: .default

@@ -1,5 +1,5 @@
 # TaskListView background color customization
-_Exported on 5/19/2026 at 00:26:20 PDT from Cursor (3.4.16)_
+_Exported on 5/19/2026 at 13:00:33 PDT from Cursor (3.4.16)_
 
 ---
 

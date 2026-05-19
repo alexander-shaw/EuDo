@@ -12,8 +12,8 @@ struct TaskStateToggleView: View {
     var referenceDate: Date
     var onToggle: (() -> Void)?
 
-    private let size: CGFloat = 26
-    private let lineWidth: CGFloat = 3
+    private let size: CGFloat = 30
+    private let lineWidth: CGFloat = 6
 
     private var isCurrentDay: Bool {
         let bounds = TaskItem.dayBounds(for: referenceDate)
@@ -59,8 +59,14 @@ struct TaskStateToggleView: View {
                 }
             case .completed:
                 Circle().fill(Color.accentColorToken)
-            case .timesUp, .trashed:
+            case .timesUp:
                 Circle().fill(Color.errorColor)
+            case .trashed:
+                Image(systemName: "xmark.circle.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, Color.errorColor)
         }
     }
 
