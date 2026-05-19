@@ -1,6 +1,7 @@
 # EuDo
 
 ## A todo list app
+https://docs.google.com/document/d/1PcQ7OrmRV_dfHPgK_PWXjHShWLEHPrPt3WwKYnrx33w/edit?usp=sharing
 
 ### Tech Stack
  - Swift/SwiftUI

@@ -4,16 +4,16 @@ overview: Create a Core Data entity `TaskItem` with the requested attributes/sta
 todos:
   - id: update-xcdatamodel
     content: Replace `Item` entity with `TaskItem` and add required attributes in `EuDo.xcdatamodel/contents`; set entity `codeGenerationType` to `none`.
-    status: pending
+    status: completed
   - id: add-taskitem-class
     content: Add `TaskItem.swift` with NSManagedObject properties, `TaskState` enum, computed mapping, and `awakeFromInsert` setting `deletedAt` to end-of-day.
-    status: pending
+    status: completed
   - id: update-preview-data
     content: Update `Persistence.swift` preview to create `TaskItem` instances with required fields and initial task state.
-    status: pending
+    status: completed
   - id: update-ui-fetch-and-soft-delete
     content: Update `ContentView.swift` to fetch by current-day window using a predicate on `expiresAt`, create `TaskItem` in `addItem()`, and soft-delete in `deleteItems()` by updating state/dates (no Core Data deletes).
-    status: pending
+    status: completed
 isProject: false
 ---
 

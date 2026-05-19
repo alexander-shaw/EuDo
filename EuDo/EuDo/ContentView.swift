@@ -11,41 +11,70 @@ import CoreData
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
 
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: true)],
-        animation: .default)
-    private var items: FetchedResults<Item>
+    @FetchRequest
+    private var items: FetchedResults<TaskItem>
+
+    init() {
+        let today = TaskItem.dayBounds(for: Date())
+        let predicate = NSPredicate(
+            format: "expiresAt >= %@ AND expiresAt <= %@ AND taskState != %d",
+            today.start as NSDate,
+            today.end as NSDate,
+            Int(TaskState.trashed.rawValue)
+        )
+        _items = FetchRequest(
+            sortDescriptors: [
+                NSSortDescriptor(keyPath: \TaskItem.taskState, ascending: true),
+                NSSortDescriptor(keyPath: \TaskItem.expiresAt, ascending: true),
+                NSSortDescriptor(keyPath: \TaskItem.createdAt, ascending: true)
+            ],
+            predicate: predicate,
+            animation: .default
+        )
+    }
 
     var body: some View {
         NavigationView {
             List {
-                ForEach(items) { item in
+                ForEach(items) { task in
                     NavigationLink {
-                        Text("Item at \(item.timestamp!, formatter: itemFormatter)")
+                        Text(task.name)
                     } label: {
-                        Text(item.timestamp!, formatter: itemFormatter)
+                        VStack(alignment: .leading) {
+                            Text(task.name)
+                            Text(task.createdAt, formatter: itemFormatter)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .onDelete(perform: deleteItems)
             }
+            .navigationTitle("Today")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     EditButton()
                 }
                 ToolbarItem {
                     Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                        Label("Add Task", systemImage: "plus")
                     }
                 }
             }
-            Text("Select an item")
+            Text("Select a task")
         }
     }
 
     private func addItem() {
         withAnimation {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
+            let now = Date()
+            let newItem = TaskItem(context: viewContext)
+            newItem.name = "New Task"
+            newItem.createdAt = now
+            newItem.expiresAt = TaskItem.endOfDay(for: now)
+            newItem.lastUpdatedAt = now
+            newItem.deletedAt = TaskItem.endOfDay(for: now)
+            newItem.state = .inProgress
 
             do {
                 try viewContext.save()
@@ -60,7 +89,14 @@ struct ContentView: View {
 
     private func deleteItems(offsets: IndexSet) {
         withAnimation {
-            offsets.map { items[$0] }.forEach(viewContext.delete)
+            let now = Date()
+            let endOfDay = TaskItem.endOfDay(for: now)
+
+            offsets.map { items[$0] }.forEach { task in
+                task.state = .trashed
+                task.deletedAt = endOfDay
+                task.lastUpdatedAt = now
+            }
 
             do {
                 try viewContext.save()
