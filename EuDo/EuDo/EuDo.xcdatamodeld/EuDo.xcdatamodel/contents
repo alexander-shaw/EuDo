@@ -7,6 +7,7 @@
         <attribute name="lastUpdatedAt" optional="NO" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="completedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="deletedAt" optional="NO" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="sortOrder" optional="NO" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
         <attribute name="taskState" optional="NO" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
     </entity>
     <elements>

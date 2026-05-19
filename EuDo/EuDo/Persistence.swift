@@ -14,7 +14,7 @@ struct PersistenceController {
     static let preview: PersistenceController = {
         let result = PersistenceController(inMemory: true)
         let viewContext = result.container.viewContext
-        for _ in 0..<10 {
+        for index in 0..<10 {
             let newItem = TaskItem(context: viewContext)
             let now = Date()
             newItem.name = "Sample Task"
@@ -22,6 +22,7 @@ struct PersistenceController {
             newItem.expiresAt = TaskItem.endOfDay(for: now)
             newItem.lastUpdatedAt = now
             newItem.deletedAt = TaskItem.endOfDay(for: now)
+            newItem.sortOrder = Double(index)
             newItem.state = .inProgress
         }
         do {

@@ -35,6 +35,7 @@ class TaskItem: NSManagedObject {
         lastUpdatedAt = now
         expiresAt = Self.endOfDay(for: now)
         deletedAt = Self.endOfDay(for: now)
+        sortOrder = now.timeIntervalSince1970
         state = .inProgress
     }
 
@@ -53,6 +54,28 @@ class TaskItem: NSManagedObject {
         let end = endOfDay(for: date, calendar: calendar)
         return (start, end)
     }
+
+    static func sortOrder(insertAfter index: Int?, in items: [TaskItem]) -> Double {
+        guard !items.isEmpty else { return 0 }
+
+        guard let index else {
+            return items[0].sortOrder - 1
+        }
+
+        guard index < items.count - 1 else {
+            return items[items.count - 1].sortOrder + 1
+        }
+
+        let before = items[index].sortOrder
+        let after = items[index + 1].sortOrder
+        let midpoint = (before + after) / 2
+
+        if midpoint == before || midpoint == after {
+            return before + 0.5
+        }
+
+        return midpoint
+    }
 }
 
 extension TaskItem: Identifiable {
@@ -62,5 +85,6 @@ extension TaskItem: Identifiable {
     @NSManaged var lastUpdatedAt: Date
     @NSManaged var completedAt: Date?
     @NSManaged var deletedAt: Date
+    @NSManaged var sortOrder: Double
     @NSManaged var taskState: Int16
 }
