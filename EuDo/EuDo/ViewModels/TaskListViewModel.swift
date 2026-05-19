@@ -81,19 +81,40 @@ struct TaskListViewModel {
         save()
     }
 
+    func markExpiredTasksTimesUp(now: Date) {
+        let bounds = TaskItem.dayBounds(for: now)
+        let request = TaskItem.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "taskState == %d AND expiresAt >= %@ AND expiresAt < %@",
+            Int(TaskState.inProgress.rawValue),
+            bounds.start as NSDate,
+            now as NSDate
+        )
+        guard let expired = try? viewContext.fetch(request), !expired.isEmpty else { return }
+        for task in expired {
+            task.state = .timesUp
+            task.completedAt = nil
+            task.lastUpdatedAt = now
+        }
+        save()
+    }
+
     func toggleCompletion(uri: String, referenceDate: Date) {
         guard let task = task(for: uri) else { return }
         let bounds = TaskItem.dayBounds(for: referenceDate)
         guard task.expiresAt >= bounds.start, task.expiresAt <= bounds.end else { return }
-        guard task.state == .inProgress || task.state == .completed else { return }
 
         let now = Date()
-        if task.state == .completed {
-            task.state = .inProgress
-            task.completedAt = nil
-        } else {
-            task.state = .completed
-            task.completedAt = now
+        switch task.state {
+            case .inProgress:
+                task.state = .completed
+                task.completedAt = now
+            case .completed:
+                guard task.expiresAt >= referenceDate else { return }
+                task.state = .inProgress
+                task.completedAt = nil
+            case .timesUp, .trashed:
+                return
         }
         task.lastUpdatedAt = now
         save()

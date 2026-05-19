@@ -25,6 +25,7 @@ struct InsertGap: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .hapticFeedback(.medium)
         .frame(maxWidth: .infinity, maxHeight: expands ? .infinity : nil)
     }
 }

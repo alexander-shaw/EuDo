@@ -17,6 +17,26 @@ struct TaskEditorSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                TitleView(
+                    titleText: title,
+                    leading: {
+                        Button(action: onCancel) {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 16, weight: .semibold))
+                                .frame(width: 36, height: 36)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .hapticFeedback(.medium)
+                    },
+                    trailing: {
+                        Button("Save", action: onSave)
+                            .fontWeight(.semibold)
+                            .hapticFeedback(.medium)
+                            .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                )
+
                 MultilineTextEditorView(
                     text: $name,
                     placeholder: "New task",
@@ -29,15 +49,7 @@ struct TaskEditorSheet: View {
                 ExpirationChipsView(expiresAt: $expiresAt)
                     .padding(.vertical, 12)
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel", action: onCancel)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save", action: onSave)
-                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 }

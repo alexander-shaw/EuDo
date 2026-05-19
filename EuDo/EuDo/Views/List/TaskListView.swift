@@ -10,7 +10,6 @@ import CoreData
 
 struct TaskListView: View {
     @Environment(\.managedObjectContext) private var viewContext
-    @ObservedObject private var timeVM = TimeViewModel.shared
     @State private var sheetMode: TaskSheetMode?
     @State private var draftName = ""
     @State private var draftExpiresAt = TaskItem.endOfDay(for: Date())
@@ -55,107 +54,108 @@ struct TaskListView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
-                GeometryReader { geometry in
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            if dayItems.isEmpty {
-                                EmptyListView(message: emptyListMessage) {
-                                    presentCreate(after: nil)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: max(0, geometry.size.height - 24), alignment: .center)
-                            } else {
-                                InsertGap {
-                                    presentCreate(after: nil)
-                                }
+            VStack(spacing: 0) {
+                TitleView(titleText: dayTitle)
 
-                                ForEach(Array(dayItems.enumerated()), id: \.element.objectID) { index, task in
-                                    TaskRow(
-                                        task: task,
-                                        referenceDate: timeVM.currentDateTime,
-                                        onToggle: {
-                                            withAnimation {
-                                                viewModel.toggleCompletion(uri: viewModel.taskURI(for: task), referenceDate: timeVM.currentDateTime)
-                                            }
-                                        }
-                                    )
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        presentEdit(for: task)
+                ZStack(alignment: .bottomTrailing) {
+                    GeometryReader { geometry in
+                        ScrollView(.vertical, showsIndicators: false) {
+                            VStack(spacing: 0) {
+                                if dayItems.isEmpty {
+                                    EmptyListView(message: emptyListMessage) {
+                                        presentCreate(after: nil)
                                     }
-                                    .contextMenu {
-                                        Button {
+                                    .frame(maxWidth: .infinity)
+                                    .frame(minHeight: max(0, geometry.size.height - 24), alignment: .center)
+                                } else {
+                                    InsertGap {
+                                        presentCreate(after: nil)
+                                    }
+
+                                    ForEach(Array(dayItems.enumerated()), id: \.element.objectID) { index, task in
+                                        TaskRow(
+                                            task: task,
+                                            referenceDate: Date(),
+                                            onToggle: {
+                                                toggleTaskState(task)
+                                            }
+                                        )
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
                                             presentEdit(for: task)
-                                        } label: {
-                                            Label("Edit", systemImage: "pencil")
                                         }
+                                        .contextMenu {
+                                            Button {
+                                                presentEdit(for: task)
+                                            } label: {
+                                                Label("Edit", systemImage: "pencil")
+                                            }
 
-                                        Button {
+                                            Button {
+                                                toggleTaskState(task)
+                                            } label: {
+                                                if task.state == .completed {
+                                                    Label("Mark In Progress", systemImage: "arrow.uturn.backward.circle")
+                                                } else {
+                                                    Label("Mark Completed", systemImage: "checkmark.circle")
+                                                }
+                                            }
+                                            .disabled(!canToggleTask(task))
+
+                                            Button(role: .destructive) {
+                                                withAnimation {
+                                                    viewModel.softDelete(uri: viewModel.taskURI(for: task))
+                                                }
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                        .onDrag {
+                                            return NSItemProvider(object: viewModel.taskURI(for: task) as NSString)
+                                        }
+                                        .dropDestination(for: String.self) { droppedItems, _ in
+                                            guard let uri = droppedItems.first else { return false }
                                             withAnimation {
-                                                viewModel.toggleCompletion(uri: viewModel.taskURI(for: task), referenceDate: timeVM.currentDateTime)
+                                                viewModel.reorderTask(uri: uri, insertAfterIndex: index, existingItems: Array(dayItems))
                                             }
-                                        } label: {
-                                            if task.state == .completed {
-                                                Label("Mark In Progress", systemImage: "arrow.uturn.backward.circle")
-                                            } else {
-                                                Label("Mark Completed", systemImage: "checkmark.circle")
-                                            }
+                                            endDragSession()
+                                            return true
                                         }
 
-                                        Button(role: .destructive) {
+                                        InsertGap(expands: index == dayItems.count - 1) {
+                                            presentCreate(after: index)
+                                        }
+                                        .dropDestination(for: String.self) { droppedItems, _ in
+                                            guard let uri = droppedItems.first else { return false }
                                             withAnimation {
-                                                viewModel.softDelete(uri: viewModel.taskURI(for: task))
+                                                viewModel.reorderTask(uri: uri, insertAfterIndex: index, existingItems: Array(dayItems))
                                             }
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
+                                            endDragSession()
+                                            return true
                                         }
-                                    }
-                                    .onDrag {
-                                        return NSItemProvider(object: viewModel.taskURI(for: task) as NSString)
-                                    }
-                                    .dropDestination(for: String.self) { droppedItems, _ in
-                                        guard let uri = droppedItems.first else { return false }
-                                        withAnimation {
-                                            viewModel.reorderTask(uri: uri, insertAfterIndex: index, existingItems: Array(dayItems))
-                                        }
-                                        endDragSession()
-                                        return true
-                                    }
-
-                                    InsertGap(expands: index == dayItems.count - 1) {
-                                        presentCreate(after: index)
-                                    }
-                                    .dropDestination(for: String.self) { droppedItems, _ in
-                                        guard let uri = droppedItems.first else { return false }
-                                        withAnimation {
-                                            viewModel.reorderTask(uri: uri, insertAfterIndex: index, existingItems: Array(dayItems))
-                                        }
-                                        endDragSession()
-                                        return true
                                     }
                                 }
                             }
+                            .frame(minHeight: max(0, geometry.size.height - 24), alignment: .top)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
                         }
-                        .frame(minHeight: max(0, geometry.size.height - 24), alignment: .top)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
                     }
-                }
 
-                if isDraggingTask {
-                    TrashDropZone()
-                        .padding(.trailing, 24)
-                        .padding(.bottom, 32)
-                        .dropDestination(for: String.self) { droppedItems, _ in
-                            guard let uri = droppedItems.first else { return false }
-                            withAnimation {
-                                viewModel.softDelete(uri: uri)
+                    if isDraggingTask {
+                        TrashDropZone()
+                            .padding(.trailing, 24)
+                            .padding(.bottom, 32)
+                            .dropDestination(for: String.self) { droppedItems, _ in
+                                guard let uri = droppedItems.first else { return false }
+                                withAnimation {
+                                    viewModel.softDelete(uri: uri)
+                                }
+                                endDragSession()
+                                return true
                             }
-                            endDragSession()
-                            return true
-                        }
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
                 }
             }
             .dropDestination(for: String.self) { _, _ in
@@ -168,13 +168,9 @@ struct TaskListView: View {
                     scheduleDragSessionEnd()
                 }
             }
-            .navigationTitle(dayTitle)
-            .onReceive(timeVM.$currentDateTime) { newDate in
-                let newDay = Calendar.current.startOfDay(for: newDate)
-                if newDay != lastKnownDay {
-                    lastKnownDay = newDay
-                    viewModel.expireOverdueTasks(before: newDay)
-                }
+            .toolbar(.hidden, for: .navigationBar)
+            .task {
+                await runMaintenanceLoop()
             }
             .sheet(item: $sheetMode) { mode in
                 TaskEditorSheet(
@@ -227,17 +223,19 @@ struct TaskListView: View {
     private var dayTitle: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEE d"
-        return formatter.string(from: timeVM.currentDateTime)
+        return formatter.string(from: lastKnownDay)
     }
 
     private var dayBounds: (start: Date, end: Date) {
-        TaskItem.dayBounds(for: timeVM.currentDateTime)
+        TaskItem.dayBounds(for: lastKnownDay)
     }
 
     private var dayItems: [TaskItem] {
         let bounds = dayBounds
         return allItems.filter {
-            $0.expiresAt >= bounds.start && $0.expiresAt <= bounds.end && $0.state != .timesUp
+            $0.expiresAt >= bounds.start
+                && $0.expiresAt <= bounds.end
+                && ($0.state == .inProgress || $0.state == .completed || $0.state == .timesUp)
         }
     }
 
@@ -253,6 +251,52 @@ struct TaskListView: View {
         hasCompletedToday
             ? "Out of tasks. Tap to add more."
             : "No tasks yet. Tap to add."
+    }
+
+    private func canToggleTask(_ task: TaskItem) -> Bool {
+        let bounds = dayBounds
+        guard task.expiresAt >= bounds.start, task.expiresAt <= bounds.end else { return false }
+
+        switch task.state {
+        case .inProgress:
+            return true
+        case .completed:
+            return task.expiresAt >= Date()
+        case .timesUp, .trashed:
+            return false
+        }
+    }
+
+    private func toggleTaskState(_ task: TaskItem) {
+        guard canToggleTask(task) else { return }
+
+        switch task.state {
+            case .inProgress:
+                Feedback.Impact.heavy.fire()
+            case .completed:
+                Feedback.Impact.medium.fire()
+            case .timesUp, .trashed:
+                break
+        }
+
+        withAnimation {
+            viewModel.toggleCompletion(uri: viewModel.taskURI(for: task), referenceDate: Date())
+        }
+    }
+
+    private func runMaintenanceLoop() async {
+        while !Task.isCancelled {
+            let now = Date()
+            viewModel.markExpiredTasksTimesUp(now: now)
+
+            let newDay = Calendar.current.startOfDay(for: now)
+            if newDay != lastKnownDay {
+                lastKnownDay = newDay
+                viewModel.expireOverdueTasks(before: newDay)
+            }
+
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
     }
 
     private func startDragSession() {
