@@ -8,13 +8,6 @@
 import Foundation
 import CoreData
 
-enum TaskState: Int16, CaseIterable {
-    case inProgress = 0
-    case completed = 1
-    case trashed = 2
-    case timesUp = 3
-}
-
 @objc(TaskItem)
 class TaskItem: NSManagedObject {
     @nonobjc class func fetchRequest() -> NSFetchRequest<TaskItem> {
@@ -58,11 +51,12 @@ class TaskItem: NSManagedObject {
 
 extension TaskItem: Identifiable {
     @NSManaged var name: String
+    @NSManaged var sortOrder: Double
+    @NSManaged var taskState: Int16
+
     @NSManaged var createdAt: Date
     @NSManaged var expiresAt: Date
     @NSManaged var lastUpdatedAt: Date
     @NSManaged var completedAt: Date?
-    @NSManaged var deletedAt: Date
-    @NSManaged var sortOrder: Double
-    @NSManaged var taskState: Int16
+    @NSManaged var deletedAt: Date  // Soft deletions.
 }

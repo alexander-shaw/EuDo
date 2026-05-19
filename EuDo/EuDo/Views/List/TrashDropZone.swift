@@ -10,10 +10,10 @@ import SwiftUI
 struct TrashDropZone: View {
     var body: some View {
         Image(systemName: "trash.fill")
-            .font(.title2.weight(.semibold))
-            .padding(14)
-            .background(.red.opacity(0.9), in: Circle())
+            .font(AppTypography.actionButton)
+            .padding(AppSpacing.small + 2)
+            .background(Color.errorColor.opacity(0.9), in: Circle())
             .foregroundStyle(.white)
-            .shadow(radius: 6)
+            .shadow(color: Color.secondaryTextColor.opacity(0.2), radius: AppSpacing.xSmall - 2, x: 0, y: AppSpacing.xxSmall)
     }
 }

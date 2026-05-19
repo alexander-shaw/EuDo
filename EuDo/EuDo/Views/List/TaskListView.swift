@@ -66,7 +66,7 @@ struct TaskListView: View {
                                         presentCreate(after: nil)
                                     }
                                     .frame(maxWidth: .infinity)
-                                    .frame(minHeight: max(0, geometry.size.height - 24), alignment: .center)
+                                    .frame(minHeight: max(0, geometry.size.height - AppSpacing.xLarge), alignment: .center)
                                 } else {
                                     InsertGap {
                                         presentCreate(after: nil)
@@ -136,16 +136,16 @@ struct TaskListView: View {
                                     }
                                 }
                             }
-                            .frame(minHeight: max(0, geometry.size.height - 24), alignment: .top)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                            .frame(minHeight: max(0, geometry.size.height - AppSpacing.xLarge), alignment: .top)
+                            .padding(.horizontal, AppSpacing.large + AppSpacing.xxSmall)
+                            .padding(.vertical, AppSpacing.medium)
                         }
                     }
 
                     if isDraggingTask {
                         TrashDropZone()
-                            .padding(.trailing, 24)
-                            .padding(.bottom, 32)
+                            .padding(.trailing, AppSpacing.xLarge)
+                            .padding(.bottom, AppSpacing.xxLarge)
                             .dropDestination(for: String.self) { droppedItems, _ in
                                 guard let uri = droppedItems.first else { return false }
                                 withAnimation {

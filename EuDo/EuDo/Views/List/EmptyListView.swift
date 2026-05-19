@@ -14,22 +14,28 @@ struct EmptyListView: View {
     var body: some View {
         Button(action: action) {
             Text(message)
-                .font(.headline)
+                .font(AppTypography.bodyText)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 28)
+                .foregroundStyle(Color.secondaryTextColor)
+                .padding(.horizontal, AppSpacing.xLarge)
+                .padding(.vertical, AppSpacing.xLarge + AppSpacing.xxSmall)
                 .frame(maxWidth: .infinity)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(.thinMaterial)
+                    RoundedRectangle(cornerRadius: AppSpacing.medium, style: .continuous)
+                        .fill(Color.surfaceColor)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [8, 6]))
-                        .foregroundStyle(.tertiary)
+                    RoundedRectangle(cornerRadius: AppSpacing.medium, style: .continuous)
+                        .strokeBorder(
+                            style: StrokeStyle(
+                                lineWidth: AppSpacing.xxSmall / 2,
+                                dash: [AppSpacing.xSmall, AppSpacing.small / 2]
+                            )
+                        )
+                        .foregroundStyle(Color.secondaryTextColor.opacity(0.35))
                 )
         }
         .buttonStyle(.plain)
+        .hapticFeedback(.medium)
     }
 }

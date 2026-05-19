@@ -18,7 +18,7 @@ struct TaskRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: AppSpacing.small + 2) {
             TimelineView(.periodic(from: .now, by: 1)) { timeline in
                 let now = timeline.date
                 TaskStateToggle(
@@ -29,20 +29,29 @@ struct TaskRow: View {
                     onToggle: onToggle
                 )
             }
-            .padding(.top, 2)
+            .padding(.top, AppSpacing.xSmall - 1)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: AppSpacing.xSmall - 1) {
                 Text(task.name)
-                    .font(.headline)
+                    .font(AppTypography.bodyText)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.primaryTextColor)
                 Text(task.expiresAt, formatter: timeFormatter)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(AppTypography.caption)
+                    .foregroundStyle(Color.secondaryTextColor)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, AppSpacing.medium)
+        .padding(.vertical, AppSpacing.small)
+        .background(
+            RoundedRectangle(cornerRadius: AppSpacing.medium, style: .continuous)
+                .fill(Color.surfaceColor)
+        )
+//        .overlay(
+//            RoundedRectangle(cornerRadius: AppSpacing.medium, style: .continuous)
+//                .stroke(Color.secondaryTextColor.opacity(0.12), lineWidth: 1)
+//        )
     }
 
     private func countdownProgress(at date: Date) -> Double? {

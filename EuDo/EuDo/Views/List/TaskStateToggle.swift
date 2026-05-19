@@ -12,8 +12,8 @@ struct TaskStateToggle: View {
     let canToggle: Bool
     var onToggle: (() -> Void)?
 
-    private let size: CGFloat = 22
-    private let lineWidth: CGFloat = 2.5
+    private let size: CGFloat = 26
+    private let lineWidth: CGFloat = 3
 
     var body: some View {
         Button {
@@ -31,27 +31,22 @@ struct TaskStateToggle: View {
     private var toggleVisual: some View {
         switch state {
             case .inProgress:
-                ZStack {
+                if let countdownProgress {
                     Circle()
-                        .stroke(.secondary.opacity(isCurrentDay ? 0.18 : 0.25), lineWidth: lineWidth)
-
-                    if let countdownProgress {
-                        Circle()
-                            .trim(from: 0, to: CGFloat(min(max(countdownProgress, 0), 1)))
-                            .stroke(
-                                .secondary,
-                                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
-                            )
-                            .rotationEffect(.degrees(-90))
-                            .scaleEffect(x: -1, y: 1)
-                    }
+                        .trim(from: 0, to: CGFloat(min(max(countdownProgress, 0), 1)))
+                        .stroke(
+                            Color.accentColorToken,
+                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                        .scaleEffect(x: -1, y: 1)
                 }
             case .completed:
-                Circle().fill(.blue)
+                Circle().fill(Color.successColor)
             case .timesUp:
-                Circle().fill(.yellow)
+                Circle().fill(Color.warningColor)
             case .trashed:
-                Circle().fill(.red)
+                Circle().fill(Color.errorColor)
         }
     }
 }

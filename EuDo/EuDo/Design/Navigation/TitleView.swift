@@ -8,8 +8,6 @@
 import SwiftUI
 
 public struct TitleView<Leading: View, Trailing: View, Bottom: View>: View {
-    @Environment(\.dismiss) private var dismiss
-
     public let titleText: String
     public var moreSpace: Bool = false
     @ViewBuilder public var leading: () -> Leading
@@ -32,29 +30,31 @@ public struct TitleView<Leading: View, Trailing: View, Bottom: View>: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: 0) {
+            HStack(alignment: .center, spacing: AppSpacing.small) {
                 leading()
 
                 Text(titleText)
-                    .font(.title2.weight(.semibold))
+                    .font(AppTypography.title)
+                    .foregroundStyle(Color.primaryTextColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.9)
                     .allowsTightening(false)
                     .truncationMode(.tail)
-                    .frame(minHeight: 36)
+                    .frame(minHeight: AppSpacing.xxLarge + AppSpacing.xSmall)
 
                 Spacer(minLength: 0)
 
                 trailing()
-                    .frame(minHeight: 36)
+                    .font(AppTypography.actionButton)
+                    .frame(minHeight: AppSpacing.xxLarge + AppSpacing.xSmall)
             }
-            .padding(.top, moreSpace ? 20 : 8)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
+            .padding(.top, moreSpace ? AppSpacing.xLarge + AppSpacing.xxSmall : AppSpacing.medium)
+            .padding(.horizontal, AppSpacing.large + AppSpacing.xxSmall)
+            .padding(.bottom, AppSpacing.medium)
 
             bottom()
-                .padding(.bottom, 8)
+                .padding(.bottom, AppSpacing.small)
         }
-        .background(Color(.systemBackground))
+        .background(Color.backgroundColor)
     }
 }

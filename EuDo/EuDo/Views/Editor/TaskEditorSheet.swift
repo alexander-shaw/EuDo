@@ -19,11 +19,13 @@ struct TaskEditorSheet: View {
             VStack(spacing: 0) {
                 TitleView(
                     titleText: title,
+                    moreSpace: true,
                     leading: {
                         Button(action: onCancel) {
                             Image(systemName: "chevron.down")
-                                .font(.system(size: 16, weight: .semibold))
-                                .frame(width: 36, height: 36)
+                                .font(AppTypography.actionButton)
+                                .foregroundStyle(Color.primaryTextColor)
+                                .frame(width: AppSpacing.medium + AppSpacing.large, height: AppSpacing.medium + AppSpacing.large)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -31,7 +33,7 @@ struct TaskEditorSheet: View {
                     },
                     trailing: {
                         Button("Save", action: onSave)
-                            .fontWeight(.semibold)
+                            .font(AppTypography.actionButton)
                             .hapticFeedback(.medium)
                             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
@@ -42,12 +44,12 @@ struct TaskEditorSheet: View {
                     placeholder: "New task",
                     isFocused: true
                 )
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
+                .padding(.horizontal, AppSpacing.large)
+                .padding(.top, AppSpacing.medium)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
                 ExpirationChipsView(expiresAt: $expiresAt)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, AppSpacing.small)
             }
             .toolbar(.hidden, for: .navigationBar)
         }

@@ -1,0 +1,20 @@
+//
+//  Colors.swift
+//  EuDo
+//
+//  Created by Шоу on 5/18/26.
+//
+
+import SwiftUI
+
+extension Color {
+    static let backgroundColor = Color("BackgroundColor")
+    static let surfaceColor = Color("SurfaceColor")
+
+    static let accentColorToken = Color("AccentColor")
+    static let primaryTextColor = Color("PrimaryTextColor")
+    static let secondaryTextColor = Color("SecondaryTextColor")
+    static let successColor = Color("SuccessColor")
+    static let warningColor = Color("WarningColor")
+    static let errorColor = Color("ErrorColor")
+}
