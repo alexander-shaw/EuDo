@@ -2,6 +2,8 @@
 //  ExpirationChipsView.swift
 //  EuDo
 //
+//  Created by Шоу on 5/18/26.
+//
 
 import SwiftUI
 

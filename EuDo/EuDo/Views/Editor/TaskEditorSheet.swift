@@ -41,7 +41,7 @@ struct TaskEditorSheet: View {
 
                 MultilineTextEditorView(
                     text: $name,
-                    placeholder: "New task",
+                    placeholder: "",
                     isFocused: true
                 )
                 .padding(.horizontal, AppSpacing.large)

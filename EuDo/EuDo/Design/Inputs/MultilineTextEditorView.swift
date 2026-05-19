@@ -2,6 +2,8 @@
 //  MultilineTextEditorView.swift
 //  EuDo
 //
+//  Created by Шоу on 5/18/26.
+//
 
 import SwiftUI
 import UIKit
@@ -22,8 +24,8 @@ struct MultilineTextEditorView: View {
 
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(placeholder)
-                    .foregroundStyle(.tertiary)
-                    .font(.body)
+                    .font(AppTypography.bodyText)
+                    .foregroundStyle(Color.secondaryTextColor)
                     .padding(.top, 1)
                     .allowsHitTesting(false)
             }
@@ -50,8 +52,8 @@ private struct UIKitTextView: UIViewRepresentable {
         tv.textContainerInset = .zero
         tv.textContainer.lineFragmentPadding = 0
         tv.keyboardDismissMode = .interactive
-        tv.font = .preferredFont(forTextStyle: .body)
-        tv.textColor = .label
+        tv.font = AppTypography.bodyTextUIFont
+        tv.textColor = UIColor(Color.primaryTextColor)
         tv.text = text
 
         if autofocus {

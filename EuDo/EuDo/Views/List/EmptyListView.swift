@@ -32,7 +32,7 @@ struct EmptyListView: View {
                                 dash: [AppSpacing.xSmall, AppSpacing.small / 2]
                             )
                         )
-                        .foregroundStyle(Color.secondaryTextColor.opacity(0.35))
+                        .foregroundStyle(Color.secondaryTextColor)  // .opacity(0.35))
                 )
         }
         .buttonStyle(.plain)

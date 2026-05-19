@@ -8,24 +8,19 @@
 import SwiftUI
 
 struct InsertGap: View {
-    var expands: Bool = false
+    var height: CGFloat = AppSpacing.xxLarge
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Group {
-                if expands {
-                    Spacer(minLength: 30)
-                } else {
-                    Color.clear
-                        .frame(height: 30)
-                }
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
             }
+            .frame(height: height)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .hapticFeedback(.medium)
-        .frame(maxWidth: .infinity, maxHeight: expands ? .infinity : nil)
     }
 }

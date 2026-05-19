@@ -13,8 +13,6 @@ struct TaskListView: View {
     @State private var sheetMode: TaskSheetMode?
     @State private var draftName = ""
     @State private var draftExpiresAt = TaskItem.endOfDay(for: Date())
-    @State private var isDraggingTask = false
-    @State private var pendingDragEnd: DispatchWorkItem?
     @State private var lastKnownDay = Calendar.current.startOfDay(for: Date())
 
     @FetchRequest
@@ -26,11 +24,16 @@ struct TaskListView: View {
         TaskListViewModel(viewContext: viewContext)
     }
 
-    init() {
-        let nonTrashedPredicate = NSPredicate(
-            format: "taskState != %d",
-            Int(TaskState.trashed.rawValue)
+    private var rowInsets: EdgeInsets {
+        EdgeInsets(
+            top: AppSpacing.xSmall / 2,
+            leading: AppSpacing.large + AppSpacing.xxSmall,
+            bottom: AppSpacing.xSmall / 2,
+            trailing: AppSpacing.large + AppSpacing.xxSmall
         )
+    }
+
+    init() {
         let completedPredicate = NSPredicate(
             format: "taskState == %d OR completedAt != nil",
             Int(TaskState.completed.rawValue)
@@ -42,7 +45,6 @@ struct TaskListView: View {
                 NSSortDescriptor(keyPath: \TaskItem.expiresAt, ascending: true),
                 NSSortDescriptor(keyPath: \TaskItem.createdAt, ascending: true)
             ],
-            predicate: nonTrashedPredicate,
             animation: .default
         )
         _completedItems = FetchRequest(
@@ -58,116 +60,100 @@ struct TaskListView: View {
                 TitleView(titleText: dayTitle)
 
                 ZStack(alignment: .bottomTrailing) {
-                    GeometryReader { geometry in
-                        ScrollView(.vertical, showsIndicators: false) {
-                            VStack(spacing: 0) {
-                                if dayItems.isEmpty {
-                                    EmptyListView(message: emptyListMessage) {
-                                        presentCreate(after: nil)
+                    List {
+                        if dayItems.isEmpty {
+                            EmptyListView(message: emptyListMessage) {
+                                presentCreate(after: nil)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(rowInsets)
+                            .listRowBackground(Color.backgroundColor)
+                            .moveDisabled(true)
+                        } else {
+                            InsertGap(height: AppSpacing.xxLarge - AppSpacing.medium) {
+                                presentCreate(after: nil)
+                            }
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(rowInsets)
+                            .listRowBackground(Color.backgroundColor)
+                            .moveDisabled(true)
+
+                            ForEach(Array(dayItems.enumerated()), id: \.element.objectID) { index, task in
+                                TaskRow(
+                                    task: task,
+                                    referenceDate: Date(),
+                                    onToggle: {
+                                        toggleTaskState(task)
                                     }
-                                    .frame(maxWidth: .infinity)
-                                    .frame(minHeight: max(0, geometry.size.height - AppSpacing.xLarge), alignment: .center)
-                                } else {
-                                    InsertGap {
-                                        presentCreate(after: nil)
+                                )
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    presentEdit(for: task)
+                                }
+                                .contextMenu {
+                                    Button {
+                                        presentEdit(for: task)
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
                                     }
 
-                                    ForEach(Array(dayItems.enumerated()), id: \.element.objectID) { index, task in
-                                        TaskRow(
-                                            task: task,
-                                            referenceDate: Date(),
-                                            onToggle: {
-                                                toggleTaskState(task)
-                                            }
-                                        )
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            presentEdit(for: task)
+                                    Button {
+                                        toggleTaskState(task)
+                                    } label: {
+                                        switch task.state {
+                                            case .completed, .timesUp:
+                                                Label("Mark In Progress", systemImage: "arrow.uturn.backward.circle")
+                                            case .trashed:
+                                                Label("Restore", systemImage: "arrow.uturn.backward.circle")
+                                            case .inProgress:
+                                                Label("Mark Completed", systemImage: "checkmark.circle")
                                         }
-                                        .contextMenu {
-                                            Button {
-                                                presentEdit(for: task)
-                                            } label: {
-                                                Label("Edit", systemImage: "pencil")
-                                            }
+                                    }
+                                    .disabled(!canToggleTask(task))
 
-                                            Button {
-                                                toggleTaskState(task)
-                                            } label: {
-                                                if task.state == .completed {
-                                                    Label("Mark In Progress", systemImage: "arrow.uturn.backward.circle")
-                                                } else {
-                                                    Label("Mark Completed", systemImage: "checkmark.circle")
-                                                }
-                                            }
-                                            .disabled(!canToggleTask(task))
-
-                                            Button(role: .destructive) {
-                                                withAnimation {
-                                                    viewModel.softDelete(uri: viewModel.taskURI(for: task))
-                                                }
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
+                                    Button(role: .destructive) {
+                                        withAnimation {
+                                            viewModel.softDelete(uri: viewModel.taskURI(for: task))
                                         }
-                                        .onDrag {
-                                            return NSItemProvider(object: viewModel.taskURI(for: task) as NSString)
-                                        }
-                                        .dropDestination(for: String.self) { droppedItems, _ in
-                                            guard let uri = droppedItems.first else { return false }
-                                            withAnimation {
-                                                viewModel.reorderTask(uri: uri, insertAfterIndex: index, existingItems: Array(dayItems))
-                                            }
-                                            endDragSession()
-                                            return true
-                                        }
-
-                                        InsertGap(expands: index == dayItems.count - 1) {
-                                            presentCreate(after: index)
-                                        }
-                                        .dropDestination(for: String.self) { droppedItems, _ in
-                                            guard let uri = droppedItems.first else { return false }
-                                            withAnimation {
-                                                viewModel.reorderTask(uri: uri, insertAfterIndex: index, existingItems: Array(dayItems))
-                                            }
-                                            endDragSession()
-                                            return true
-                                        }
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
                                     }
                                 }
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(rowInsets)
+                                .listRowBackground(Color.backgroundColor)
+                                .moveDisabled(false)
+
+                                InsertGap {
+                                    presentCreate(after: index)
+                                }
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(rowInsets)
+                                .listRowBackground(Color.backgroundColor)
+                                .moveDisabled(true)
                             }
-                            .frame(minHeight: max(0, geometry.size.height - AppSpacing.xLarge), alignment: .top)
-                            .padding(.horizontal, AppSpacing.large + AppSpacing.xxSmall)
-                            .padding(.vertical, AppSpacing.medium)
+                            .onMove { source, destination in
+                                withAnimation {
+                                    viewModel.moveTasks(fromOffsets: source, toOffset: destination, existingItems: Array(dayItems))
+                                }
+                            }
                         }
                     }
+                    .environment(\.editMode, .constant(.active))
+                    .listStyle(.plain)
+                    .scrollIndicators(.hidden)
+                    .scrollContentBackground(.hidden)
 
-                    if isDraggingTask {
-                        TrashDropZone()
-                            .padding(.trailing, AppSpacing.xLarge)
-                            .padding(.bottom, AppSpacing.xxLarge)
-                            .dropDestination(for: String.self) { droppedItems, _ in
-                                guard let uri = droppedItems.first else { return false }
-                                withAnimation {
-                                    viewModel.softDelete(uri: uri)
-                                }
-                                endDragSession()
-                                return true
-                            }
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    FloatingPlusButton {
+                        let lastIndex = dayItems.isEmpty ? nil : dayItems.count - 1
+                        presentCreate(after: lastIndex)
                     }
+                    .padding(.trailing, AppSpacing.xLarge)
+                    .padding(.bottom, AppSpacing.xxLarge)
                 }
             }
-            .dropDestination(for: String.self) { _, _ in
-                endDragSession()
-                return false
-            } isTargeted: { targeted in
-                if targeted {
-                    startDragSession()
-                } else {
-                    scheduleDragSessionEnd()
-                }
-            }
+            .background(Color.backgroundColor.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
             .task {
                 await runMaintenanceLoop()
@@ -235,7 +221,7 @@ struct TaskListView: View {
         return allItems.filter {
             $0.expiresAt >= bounds.start
                 && $0.expiresAt <= bounds.end
-                && ($0.state == .inProgress || $0.state == .completed || $0.state == .timesUp)
+                && ($0.state == .inProgress || $0.state == .completed || $0.state == .timesUp || $0.state == .trashed)
         }
     }
 
@@ -249,21 +235,20 @@ struct TaskListView: View {
 
     private var emptyListMessage: String {
         hasCompletedToday
-            ? "Out of tasks. Tap to add more."
-            : "No tasks yet. Tap to add."
+            ? "Out of tasks?  Tap to add more!"
+            : "No tasks yet.  Tap to add!"
     }
 
     private func canToggleTask(_ task: TaskItem) -> Bool {
         let bounds = dayBounds
         guard task.expiresAt >= bounds.start, task.expiresAt <= bounds.end else { return false }
 
+        let now = Date()
         switch task.state {
-        case .inProgress:
-            return true
-        case .completed:
-            return task.expiresAt >= Date()
-        case .timesUp, .trashed:
-            return false
+            case .inProgress, .trashed:
+                return true
+            case .completed, .timesUp:
+                return task.expiresAt >= now
         }
     }
 
@@ -273,10 +258,8 @@ struct TaskListView: View {
         switch task.state {
             case .inProgress:
                 Feedback.Impact.heavy.fire()
-            case .completed:
+            case .completed, .timesUp, .trashed:
                 Feedback.Impact.medium.fire()
-            case .timesUp, .trashed:
-                break
         }
 
         withAnimation {
@@ -299,32 +282,6 @@ struct TaskListView: View {
         }
     }
 
-    private func startDragSession() {
-        pendingDragEnd?.cancel()
-        pendingDragEnd = nil
-        withAnimation(.easeInOut(duration: 0.2)) {
-            isDraggingTask = true
-        }
-    }
-
-    private func scheduleDragSessionEnd() {
-        pendingDragEnd?.cancel()
-        let work = DispatchWorkItem {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isDraggingTask = false
-            }
-        }
-        pendingDragEnd = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: work)
-    }
-
-    private func endDragSession() {
-        pendingDragEnd?.cancel()
-        pendingDragEnd = nil
-        withAnimation(.easeInOut(duration: 0.2)) {
-            isDraggingTask = false
-        }
-    }
 }
 
 private extension TaskListView {
@@ -347,9 +304,9 @@ private extension TaskListView {
         var title: String {
             switch self {
                 case .create:
-                    return "New Task"
+                    return "New"
                 case .edit:
-                    return "Edit Task"
+                    return "Edit"
             }
         }
     }

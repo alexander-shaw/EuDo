@@ -24,44 +24,36 @@ struct TaskListViewModel {
         save()
     }
 
-    func updateTask(uri: String, name: String, expiresAt: Date) {
+    func updateTask(uri: String, name: String, expiresAt: Date, referenceDate: Date = Date()) {
         guard let task = task(for: uri) else { return }
         task.name = name
         task.expiresAt = expiresAt
-        task.lastUpdatedAt = Date()
+        task.lastUpdatedAt = referenceDate
+        reconcileStateAfterUpdate(task, referenceDate: referenceDate)
         save()
     }
 
-    func reorderTask(uri: String, insertAfterIndex: Int?, existingItems: [TaskItem]) {
-        guard let draggedTask = task(for: uri) else { return }
+    func moveTasks(fromOffsets: IndexSet, toOffset: Int, existingItems: [TaskItem]) {
+        guard !fromOffsets.isEmpty, !existingItems.isEmpty else { return }
 
-        var sortedItems = existingItems
-        let sourceIndex = sortedItems.firstIndex { $0.objectID == draggedTask.objectID }
+        var reordered = existingItems
+        let sourceIndices = fromOffsets.sorted()
+        let movingItems = sourceIndices.map { reordered[$0] }
 
-        if let sourceIndex {
-            sortedItems.remove(at: sourceIndex)
+        for index in sourceIndices.sorted(by: >) {
+            reordered.remove(at: index)
         }
 
-        var adjustedInsertAfter = insertAfterIndex
-        if let sourceIndex, let insertAfterIndex, sourceIndex <= insertAfterIndex {
-            adjustedInsertAfter = insertAfterIndex - 1
+        let removedBeforeDestination = sourceIndices.filter { $0 < toOffset }.count
+        let insertionIndex = max(0, min(toOffset - removedBeforeDestination, reordered.count))
+        reordered.insert(contentsOf: movingItems, at: insertionIndex)
+
+        let now = Date()
+        for (index, task) in reordered.enumerated() {
+            task.sortOrder = Double(index) * 10
+            task.lastUpdatedAt = now
         }
 
-        let safeInsertAfter: Int?
-        if sortedItems.isEmpty {
-            safeInsertAfter = nil
-        } else if let adjustedInsertAfter {
-            if adjustedInsertAfter < 0 {
-                safeInsertAfter = nil
-            } else {
-                safeInsertAfter = min(adjustedInsertAfter, sortedItems.count - 1)
-            }
-        } else {
-            safeInsertAfter = nil
-        }
-
-        draggedTask.sortOrder = Self.sortOrder(insertAfter: safeInsertAfter, in: sortedItems)
-        draggedTask.lastUpdatedAt = Date()
         save()
     }
 
@@ -104,20 +96,42 @@ struct TaskListViewModel {
         let bounds = TaskItem.dayBounds(for: referenceDate)
         guard task.expiresAt >= bounds.start, task.expiresAt <= bounds.end else { return }
 
-        let now = Date()
         switch task.state {
             case .inProgress:
                 task.state = .completed
-                task.completedAt = now
+                task.completedAt = referenceDate
             case .completed:
                 guard task.expiresAt >= referenceDate else { return }
                 task.state = .inProgress
                 task.completedAt = nil
-            case .timesUp, .trashed:
-                return
+            case .timesUp:
+                guard task.expiresAt >= referenceDate else { return }
+                task.state = .inProgress
+                task.completedAt = nil
+            case .trashed:
+                task.state = .inProgress
+                task.completedAt = nil
+                task.deletedAt = TaskItem.endOfDay(for: referenceDate)
         }
-        task.lastUpdatedAt = now
+        task.lastUpdatedAt = referenceDate
         save()
+    }
+
+    private func reconcileStateAfterUpdate(_ task: TaskItem, referenceDate: Date) {
+        switch task.state {
+            case .timesUp:
+                if task.expiresAt > referenceDate {
+                    task.state = .inProgress
+                    task.completedAt = nil
+                }
+            case .inProgress:
+                if task.expiresAt <= referenceDate {
+                    task.state = .timesUp
+                    task.completedAt = nil
+                }
+            case .completed, .trashed:
+                break
+        }
     }
 
     func softDelete(uri: String) {
