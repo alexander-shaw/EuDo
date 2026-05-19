@@ -14,7 +14,7 @@ struct EuDoApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ListOfTasksView()
+            TaskListView()
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
         }
     }

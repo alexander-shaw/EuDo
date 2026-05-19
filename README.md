@@ -12,9 +12,6 @@ https://docs.google.com/document/d/1PcQ7OrmRV_dfHPgK_PWXjHShWLEHPrPt3WwKYnrx33w/
  - Tasks belong to the current day and expire at end of day (EOD).
  - By default, the user only sees one day at a time (the current day); the user has no control over this.  No future dates, backlogs, or overdue tasks.
 
-### UIUX
- - 
-
  ### Out of Scope
  - User auth/accounts
  - Scheduling for future days
