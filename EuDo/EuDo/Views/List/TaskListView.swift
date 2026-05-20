@@ -14,6 +14,9 @@ struct TaskListView: View {
     @State private var draftName = ""
     @State private var draftExpiresAt = TaskItem.endOfDay(for: Date())
     @State private var lastKnownDay = Calendar.current.startOfDay(for: Date())
+    @AppStorage("taskList.scope") private var scopeRawValue = TaskListScope.today.rawValue
+    @AppStorage("taskList.todayStateMask") private var todayStateMask = Set<TaskState>.defaultTodayVisibility.visibilityMask
+    @AppStorage("taskList.historyStateMask") private var historyStateMask = Set<TaskState>.defaultHistoryVisibility.visibilityMask
 
     @FetchRequest
     private var allItems: FetchedResults<TaskItem>
@@ -22,6 +25,24 @@ struct TaskListView: View {
 
     private var viewModel: TaskListViewModel {
         TaskListViewModel(viewContext: viewContext)
+    }
+
+    private let stateMenuOrder: [TaskState] = [.inProgress, .completed, .timesUp, .trashed]
+
+    private var scope: TaskListScope {
+        TaskListScope(rawValue: scopeRawValue) ?? .today
+    }
+
+    private var todayVisibleStates: Set<TaskState> {
+        Set<TaskState>(visibilityMask: todayStateMask)
+    }
+
+    private var historyVisibleStates: Set<TaskState> {
+        Set<TaskState>(visibilityMask: historyStateMask)
+    }
+
+    private var activeVisibleStates: Set<TaskState> {
+        scope == .today ? todayVisibleStates : historyVisibleStates
     }
 
     private var rowInsets: EdgeInsets {
@@ -57,11 +78,23 @@ struct TaskListView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                TitleView(titleText: dayTitle)
+                TitleView(
+                    titleText: listTitle,
+                    trailing: { listOptionsMenu },
+                    bottom: {
+                        if scope == .history {
+                            Text("Deleted tasks auto-delete after about 24 hours.")
+                                .font(AppTypography.caption)
+                                .foregroundStyle(Color.secondaryTextColor)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, AppSpacing.large + AppSpacing.xxSmall)
+                        }
+                    }
+                )
 
                 ZStack(alignment: .bottomTrailing) {
                     List {
-                        if dayItems.isEmpty {
+                        if displayItems.isEmpty {
                             EmptyListView(message: emptyListMessage) {
                                 presentCreate(after: nil)
                             }
@@ -71,18 +104,24 @@ struct TaskListView: View {
                             .listRowBackground(Color.backgroundColor)
                             .moveDisabled(true)
                         } else {
-                            InsertGap(height: AppSpacing.xxLarge - AppSpacing.medium) {
-                                presentCreate(after: nil)
+                            if canShowInsertGaps {
+                                InsertGap(height: AppSpacing.xxLarge - AppSpacing.medium) {
+                                    presentCreate(
+                                        after: nil,
+                                        defaultExpiresAt: defaultExpirationForGap(previousTask: nil, nextTask: displayItems.first)
+                                    )
+                                }
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(rowInsets)
+                                .listRowBackground(Color.backgroundColor)
+                                .moveDisabled(true)
                             }
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(rowInsets)
-                            .listRowBackground(Color.backgroundColor)
-                            .moveDisabled(true)
 
-                            ForEach(Array(dayItems.enumerated()), id: \.element.objectID) { index, task in
+                            ForEach(Array(displayItems.enumerated()), id: \.element.objectID) { index, task in
                                 TaskRow(
                                     task: task,
                                     referenceDate: Date(),
+                                    showsCreatedDate: scope == .history,
                                     onToggle: {
                                         toggleTaskState(task)
                                     }
@@ -98,19 +137,22 @@ struct TaskListView: View {
                                         Label("Edit", systemImage: "pencil")
                                     }
 
-                                    Button {
-                                        toggleTaskState(task)
-                                    } label: {
-                                        switch task.state {
-                                            case .completed, .timesUp:
-                                                Label("Mark In Progress", systemImage: "arrow.uturn.backward.circle")
-                                            case .trashed:
-                                                Label("Restore", systemImage: "arrow.uturn.backward.circle")
-                                            case .inProgress:
-                                                Label("Mark Completed", systemImage: "checkmark.circle")
+                                    if task.state == .timesUp {
+                                        ForEach(availableTimesUpExtensionOptions, id: \.seconds) { option in
+                                            Button {
+                                                extendTimesUpTask(task, by: option.seconds)
+                                            } label: {
+                                                Label(option.title, systemImage: "plus")
+                                            }
                                         }
+                                    } else {
+                                        Button {
+                                            toggleTaskState(task)
+                                        } label: {
+                                            Label(toggleActionTitle(for: task), systemImage: toggleActionSymbol(for: task))
+                                        }
+                                        .disabled(!canToggleTask(task))
                                     }
-                                    .disabled(!canToggleTask(task))
 
                                     Button(role: .destructive) {
                                         withAnimation {
@@ -123,19 +165,20 @@ struct TaskListView: View {
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(rowInsets)
                                 .listRowBackground(Color.backgroundColor)
-                                .moveDisabled(false)
-
-                                InsertGap {
-                                    presentCreate(after: index)
-                                }
-                                .listRowSeparator(.hidden)
-                                .listRowInsets(rowInsets)
-                                .listRowBackground(Color.backgroundColor)
                                 .moveDisabled(true)
-                            }
-                            .onMove { source, destination in
-                                withAnimation {
-                                    viewModel.moveTasks(fromOffsets: source, toOffset: destination, existingItems: Array(dayItems))
+
+                                if canShowInsertGaps {
+                                    InsertGap {
+                                        let nextTask = (index + 1) < displayItems.count ? displayItems[index + 1] : nil
+                                        presentCreate(
+                                            after: index,
+                                            defaultExpiresAt: defaultExpirationForGap(previousTask: task, nextTask: nextTask)
+                                        )
+                                    }
+                                    .listRowSeparator(.hidden)
+                                    .listRowInsets(rowInsets)
+                                    .listRowBackground(Color.backgroundColor)
+                                    .moveDisabled(true)
                                 }
                             }
                         }
@@ -146,8 +189,7 @@ struct TaskListView: View {
                     .scrollContentBackground(.hidden)
 
                     FloatingPlusButton {
-                        let lastIndex = dayItems.isEmpty ? nil : dayItems.count - 1
-                        presentCreate(after: lastIndex)
+                        presentCreate(after: nil)
                     }
                     .padding(.trailing, AppSpacing.xLarge)
                     .padding(.bottom, AppSpacing.xxLarge)
@@ -177,9 +219,9 @@ struct TaskListView: View {
         }
     }
 
-    private func presentCreate(after index: Int?) {
+    private func presentCreate(after index: Int?, defaultExpiresAt: Date = TaskItem.endOfDay(for: Date())) {
         draftName = ""
-        draftExpiresAt = TaskItem.endOfDay(for: Date())
+        draftExpiresAt = defaultExpiresAt
         sheetMode = .create(insertAfterIndex: index)
     }
 
@@ -195,8 +237,13 @@ struct TaskListView: View {
 
         withAnimation {
             switch mode {
-                case .create(let insertAfterIndex):
-                    viewModel.createTask(name: trimmedName, expiresAt: draftExpiresAt, insertAfterIndex: insertAfterIndex, existingItems: Array(dayItems))
+                case .create:
+                    viewModel.createTask(
+                        name: trimmedName,
+                        expiresAt: draftExpiresAt,
+                        insertAfterIndex: nil,
+                        existingItems: []
+                    )
                 case .edit(let taskURI):
                     viewModel.updateTask(uri: taskURI, name: trimmedName, expiresAt: draftExpiresAt)
             }
@@ -212,16 +259,80 @@ struct TaskListView: View {
         return formatter.string(from: lastKnownDay)
     }
 
+    private var listTitle: String {
+        scope == .history ? "History" : dayTitle
+    }
+
     private var dayBounds: (start: Date, end: Date) {
         TaskItem.dayBounds(for: lastKnownDay)
     }
 
-    private var dayItems: [TaskItem] {
+    private var dayItemsAllStates: [TaskItem] {
         let bounds = dayBounds
         return allItems.filter {
             $0.expiresAt >= bounds.start
                 && $0.expiresAt <= bounds.end
-                && ($0.state == .inProgress || $0.state == .completed || $0.state == .timesUp || $0.state == .trashed)
+        }
+    }
+
+    private var displayItems: [TaskItem] {
+        let baseItems: [TaskItem]
+        switch scope {
+            case .today:
+                baseItems = dayItemsAllStates.filter { activeVisibleStates.contains($0.state) }
+            case .history:
+                baseItems = allItems.filter { activeVisibleStates.contains($0.state) }
+        }
+        if scope == .history {
+            return sortHistoryItems(baseItems)
+        }
+        return sortUsualItems(baseItems)
+    }
+
+    private var canShowInsertGaps: Bool {
+        scope == .today && Calendar.current.isDateInToday(lastKnownDay)
+    }
+
+    private func defaultExpirationForGap(previousTask: TaskItem?, nextTask: TaskItem?) -> Date {
+        let now = Date()
+        let endOfDay = TaskItem.endOfDay(for: now)
+
+        guard let previousTask, let nextTask else {
+            return endOfDay
+        }
+
+        if isEndOfDay(previousTask.expiresAt, endOfDay: endOfDay)
+            && isEndOfDay(nextTask.expiresAt, endOfDay: endOfDay) {
+            return endOfDay
+        }
+
+        let midpoint = Date(timeIntervalSinceReferenceDate: (previousTask.expiresAt.timeIntervalSinceReferenceDate + nextTask.expiresAt.timeIntervalSinceReferenceDate) / 2)
+        return max(min(midpoint, endOfDay), now)
+    }
+
+    private func isEndOfDay(_ date: Date, endOfDay: Date) -> Bool {
+        abs(date.timeIntervalSince(endOfDay)) < 2
+    }
+
+    private func sortUsualItems(_ items: [TaskItem]) -> [TaskItem] {
+        items.sorted { lhs, rhs in
+            if lhs.state.rawValue != rhs.state.rawValue { return lhs.state.rawValue < rhs.state.rawValue }
+            if lhs.expiresAt != rhs.expiresAt { return lhs.expiresAt < rhs.expiresAt }
+            if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+            return lhs.createdAt < rhs.createdAt
+        }
+    }
+
+    private func sortHistoryItems(_ items: [TaskItem]) -> [TaskItem] {
+        let calendar = Calendar.current
+        return items.sorted { lhs, rhs in
+            let lhsDay = calendar.startOfDay(for: lhs.expiresAt)
+            let rhsDay = calendar.startOfDay(for: rhs.expiresAt)
+            if lhsDay != rhsDay { return lhsDay > rhsDay }
+            if lhs.state.rawValue != rhs.state.rawValue { return lhs.state.rawValue < rhs.state.rawValue }
+            if lhs.expiresAt != rhs.expiresAt { return lhs.expiresAt < rhs.expiresAt }
+            if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+            return lhs.createdAt < rhs.createdAt
         }
     }
 
@@ -234,7 +345,10 @@ struct TaskListView: View {
     }
 
     private var emptyListMessage: String {
-        hasCompletedToday
+        if scope == .history {
+            return "No tasks in history."
+        }
+        return hasCompletedToday
             ? "Out of tasks?  Tap to add more!"
             : "No tasks yet.  Tap to add!"
     }
@@ -265,6 +379,133 @@ struct TaskListView: View {
         withAnimation {
             viewModel.toggleCompletion(uri: viewModel.taskURI(for: task), referenceDate: Date())
         }
+    }
+
+    private func extendTimesUpTask(_ task: TaskItem, by seconds: TimeInterval) {
+        guard task.state == .timesUp else { return }
+        let now = Date()
+        let updatedExpiration = now.addingTimeInterval(seconds)
+        Feedback.Impact.medium.fire()
+        withAnimation {
+            viewModel.updateTask(
+                uri: viewModel.taskURI(for: task),
+                name: task.name,
+                expiresAt: updatedExpiration,
+                referenceDate: now
+            )
+        }
+    }
+
+    private var availableTimesUpExtensionOptions: [(title: String, seconds: TimeInterval)] {
+        let options: [(title: String, seconds: TimeInterval)] = [
+            ("15 minutes", 15 * 60),
+            ("30 minutes", 30 * 60),
+            ("1 hour", 60 * 60)
+        ]
+        let now = Date()
+        let remainingUntilEndOfDay = TaskItem.endOfDay(for: now).timeIntervalSince(now)
+        return options.filter { $0.seconds > 0 && $0.seconds <= remainingUntilEndOfDay + 1 }
+    }
+
+    private func toggleActionTitle(for task: TaskItem) -> String {
+        switch task.state {
+            case .inProgress:
+                return "Mark Completed"
+            case .completed:
+                return "Mark In Progress"
+            case .trashed:
+                return "Restore"
+            case .timesUp:
+                return "Mark In Progress"
+        }
+    }
+
+    private func toggleActionSymbol(for task: TaskItem) -> String {
+        switch task.state {
+            case .inProgress:
+                return "checkmark.circle"
+            case .completed, .trashed, .timesUp:
+                return "arrow.uturn.backward.circle"
+        }
+    }
+
+    @ViewBuilder
+    private var listOptionsMenu: some View {
+        Menu {
+            Section("View") {
+                ForEach(TaskListScope.allCases, id: \.rawValue) { listScope in
+                    Button {
+                        setScope(listScope)
+                    } label: {
+                        menuRow(title: listScope.title, isSelected: scope == listScope)
+                    }
+                }
+            }
+
+            Section("Show") {
+                ForEach(stateMenuOrder, id: \.rawValue) { taskState in
+                    Button {
+                        toggleVisibility(taskState)
+                    } label: {
+                        menuRow(title: taskState.title, isSelected: activeVisibleStates.contains(taskState))
+                    }
+                }
+            }
+
+            Divider()
+
+            Button("Reset Filters", role: .none) {
+                resetFilters()
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(AppTypography.actionButton)
+                .foregroundStyle(Color.primaryTextColor)
+                .frame(width: AppSpacing.medium + AppSpacing.large, height: AppSpacing.medium + AppSpacing.large)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hapticFeedback(.light)
+    }
+
+    @ViewBuilder
+    private func menuRow(title: String, isSelected: Bool) -> some View {
+        if isSelected {
+            Label(title, systemImage: "checkmark")
+        } else {
+            Text(title)
+        }
+    }
+
+    private func setScope(_ newScope: TaskListScope) {
+        scopeRawValue = newScope.rawValue
+    }
+
+    private func toggleVisibility(_ state: TaskState) {
+        switch scope {
+            case .today:
+                var visible = todayVisibleStates
+                if visible.contains(state) {
+                    visible.remove(state)
+                } else {
+                    visible.insert(state)
+                }
+                todayStateMask = visible.visibilityMask
+            case .history:
+                var visible = historyVisibleStates
+                if visible.contains(state) {
+                    visible.remove(state)
+                } else {
+                    visible.insert(state)
+                }
+                historyStateMask = visible.visibilityMask
+        }
+    }
+
+    private func resetFilters() {
+        scopeRawValue = TaskListScope.today.rawValue
+        todayStateMask = Set<TaskState>.defaultTodayVisibility.visibilityMask
+        historyStateMask = Set<TaskState>.defaultHistoryVisibility.visibilityMask
     }
 
     private func runMaintenanceLoop() async {

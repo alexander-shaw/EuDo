@@ -138,8 +138,24 @@ struct TaskListViewModel {
         guard let task = task(for: uri) else { return }
         let now = Date()
         task.state = .trashed
-        task.deletedAt = TaskItem.endOfDay(for: now)
+        task.deletedAt = now
         task.lastUpdatedAt = now
+        save()
+    }
+
+    func deleteExpiredTrashedTasks(referenceDate: Date = Date()) {
+        let cutoff = referenceDate.addingTimeInterval(-24 * 60 * 60)
+        let request = TaskItem.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "taskState == %d AND deletedAt <= %@",
+            Int(TaskState.trashed.rawValue),
+            cutoff as NSDate
+        )
+
+        guard let expiredTrashed = try? viewContext.fetch(request), !expiredTrashed.isEmpty else { return }
+        for task in expiredTrashed {
+            viewContext.delete(task)
+        }
         save()
     }
 

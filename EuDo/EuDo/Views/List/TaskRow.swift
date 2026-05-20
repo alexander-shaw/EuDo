@@ -10,6 +10,7 @@ import SwiftUI
 struct TaskRow: View {
     @ObservedObject var task: TaskItem
     var referenceDate: Date = Date()
+    var showsCreatedDate: Bool = false
     var onToggle: (() -> Void)?
 
     var body: some View {
@@ -26,7 +27,7 @@ struct TaskRow: View {
                     .font(AppTypography.bodyText)
                     .fontWeight(.medium)
                     .foregroundStyle(Color.primaryTextColor)
-                Text(task.expiresAt, formatter: timeFormatter)
+                Text(subtitleText)
                     .font(AppTypography.caption)
                     .foregroundStyle(Color.secondaryTextColor)
             }
@@ -35,11 +36,24 @@ struct TaskRow: View {
         .padding(.horizontal, AppSpacing.medium)
         .padding(.vertical, AppSpacing.small)
     }
+
+    private var subtitleText: String {
+        let expiryText = timeFormatter.string(from: task.expiresAt)
+        guard showsCreatedDate else { return expiryText }
+        let createdText = monthDayFormatter.string(from: task.createdAt)
+        return "\(createdText)  \(expiryText)"
+    }
 }
 
 private let timeFormatter: DateFormatter = {
     let formatter = DateFormatter()
     formatter.dateStyle = .none
     formatter.timeStyle = .short
+    return formatter
+}()
+
+private let monthDayFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "M/d"
     return formatter
 }()

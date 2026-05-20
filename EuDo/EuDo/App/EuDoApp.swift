@@ -16,6 +16,10 @@ struct EuDoApp: App {
         WindowGroup {
             TaskListView()
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
+                .task {
+                    TaskListViewModel(viewContext: persistenceController.container.viewContext)
+                        .deleteExpiredTrashedTasks()  // Deletes expired trashed tasks at app launch.
+                }
         }
     }
 }

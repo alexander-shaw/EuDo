@@ -60,7 +60,10 @@ struct TaskStateToggleView: View {
             case .completed:
                 Circle().fill(Color.accentColorToken)
             case .timesUp:
-                Circle().fill(Color.errorColor)
+                Image(systemName: "hourglass.tophalf.filled")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(Color.errorColor)
             case .trashed:
                 Image(systemName: "xmark.circle.fill")
                     .resizable()
