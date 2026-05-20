@@ -75,34 +75,28 @@ Yes, the name is inspired by Eulerity's name, which itself comes from Euler.
 - Core Data for local task storage.
 - @AppStorage / UserDefaults to persist lightweight settings and filter preferences.
 - Time-based state transitions driven by expiration times and day-boundary checks.
-- Explicit task states instead of deleting historical meaning immediately.
+- Explicit task states.
 - No server state, synchronization logic, or remote persistence concerns.
-- Task identity uses a persisted UUID (`TaskItem.id`) with clean-break model changes.
+- Uses a persisted UUID (`TaskItem.id`).
 
 ## Version Control
 
-- Good practice, although not strictly required for the assignment.
-- Pushing directly to the main branch because this is a solo prototype rather than a collaborative production system.
-- Assuming clean-break changes are acceptable.
-- Since the app is not in production, migration strategy and backwards compatibility concerns are intentionally disregarded.
+- Good practice but not strictly required for this assignment.
+- Pushing directly to main branch because this is a solo prototype rather than a collaborative project in production.
+- Migration strategy and backwards compatibility are intentionally disregarded.
+- Clean-break changes are assumed to be acceptable.
 
 ## Agentic AI
 
-I believe we are entering a third stage of computing.
+I believe we are in a third stage of computing.  Computer was first a human job title.  Then, people programmed computers.  Now and tomorrow, people will oversee computers programming computers.
 
-First, computer was a human job title.  Then, people programmed computers.  Increasingly, people will oversee computers programming computers.
+Consumer/business software will continue to see the greatest adoption.  Jack Dorsey’s argument for Block is compelling: AI systems handle repetitive, generalized work while people focus on edge cases, judgment, and oversight.  And as people solve edge cases, models receive better training data, and the cycle continues.  Newer (and future) agentic models can operate completely offline and locally, so even in air-gapped military systems, commercial laboratories, or highly regulated domains like the power grid, there will likely be some minimal usage of agents.
 
-Newer and future agentic models operate completely offline and locally.  Even in air-gapped military systems, commercial laboratories, or highly regulated domains like the power grid, there will likely be some role for agents, and consumer/business software will probably see the greatest adoption.
+To me, this resembles previous technological transitions: cars replacing horses, higher-level programming languages abstracting lower-level ones (Python <-- C <-- Assembly), or moving from punch cards to IDEs.  Productivity is higher; hundreds of lines of valid code can be generated in seconds, so judgment is more valuable.
 
-Jack Dorsey’s argument for Block is compelling: AI systems handle repetitive, generalized work while people focus on edge cases, judgment, and oversight.  And as people solve edge cases, models receive better training data, and the cycle improves.
+The risk could be something like *The Machine Stops* by E.M. Forster, but while some may fall behind by outsourcing their thinking, others will use AI to gain a competitive edge.  I think the bigger risk is AI-designed chips and hardware that can’t be fully verified and then unexpectedly fail; software can be patched, but low-level hardware failure at scale would be catastrophic (and maybe even apocalyptic).
 
-To me, this resembles previous technological transitions: cars replacing horses, higher-level programming languages abstracting lower-level ones (Python <-- C <-- Assembly), or moving from punch cards to IDEs.
-
-Productivity is higher; hundreds of lines of working, valid code can be generated in seconds, so judgment is more valuable.
-
-The risk could be something like *The Machine Stops* by E.M. Forster, but while some may fall behind by outsourcing their thinking, others will use AI to gain an edge.  (I think the bigger risk is AI-designed chips and hardware that can’t be fully verified and then unexpectedly fail; software can be patched, but low-level hardware failure at scale would be catastrophic and maybe even apocalyptic.)
-
-I love this field more than ever!  I plan to pursue graduate study in AI.  If I were already an expert, I would not be applying for an internship; I consider my judgment intermediate, and I am seeking professional experience to continue improving it and continue in the direction of making a dent in the universe.
+I love this field more than ever!  I plan to pursue graduate study in CS/AI.  If I were already an expert, I would not be applying for an internship; I consider my judgment intermediate, and I am seeking professional experience to continue improving my craft.
 
 ## Future Work
 
@@ -183,7 +177,7 @@ I love this field more than ever!  I plan to pursue graduate study in AI.  If I 
 - **Completed But Expired**: For current-day completed tasks with `expiresAt < now`, "Mark In Progress" is hidden.
 - **Times Up Extensions May Be Absent**: If no extension fits before EOD, only Edit + Delete are shown.
 - **Duplicate Is Clamped**: Duplicate uses `now + totalSeconds`, clamped to today (at most EOD).
-- `**totalSeconds < 60` Duplicates**: If the source task’s `totalSeconds` is under a minute (or invalid), duplication defaults to EOD (never "0 minutes").
+- **`totalSeconds < 60` Duplicates**: If the source task’s `totalSeconds` is under a minute (or invalid), duplication defaults to EOD (never "0 minutes").
 - **Minute-Accurate Timestamps**: Timestamps are truncated to minutes (`4:49:59 PM` displays as `4:49 PM`, not `4:50 PM`).
 - **Event-Driven Maintenance**: Expiration maintenance sleeps until the next expiration or midnight, then recomputes (instead of polling every second).
 
