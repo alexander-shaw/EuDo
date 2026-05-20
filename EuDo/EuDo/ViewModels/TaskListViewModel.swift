@@ -230,15 +230,16 @@ struct TaskListViewModel {
     }
 
     // Marks expired tasks as timesUp.
-    func markExpiredTasksTimesUp(now: Date) {
+    func markExpiredTasksTimesUp(now: Date, graceSeconds: TimeInterval = 0) {
         viewContext.performAndWait {
             let bounds = TaskItem.dayBounds(for: now)
+            let expirationCutoff = now.addingTimeInterval(-graceSeconds)
             let request = TaskItem.fetchRequest()
             request.predicate = NSPredicate(
-                format: "taskState == %d AND expiresAt >= %@ AND expiresAt < %@",
+                format: "taskState == %d AND expiresAt >= %@ AND expiresAt <= %@",
                 Int(TaskState.inProgress.rawValue),
                 bounds.start as NSDate,
-                now as NSDate
+                expirationCutoff as NSDate
             )
 
             do {
@@ -282,7 +283,8 @@ struct TaskListViewModel {
                 task.state = .inProgress
                 task.completedAt = nil
             case .trashed:
-                task.state = .inProgress
+                let hasRemainingTime = Self.totalSeconds(until: task.expiresAt, referenceDate: referenceDate) > 0
+                task.state = hasRemainingTime ? .inProgress : .timesUp
                 task.completedAt = nil
                 task.deletedAt = TaskItem.endOfDay(for: referenceDate)
         }

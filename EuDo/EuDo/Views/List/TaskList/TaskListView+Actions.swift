@@ -72,6 +72,7 @@ extension TaskListView {
                         notificationsViewModel.cancel(taskURI: taskURI)
                 }
             }
+            restartMaintenanceLoop()
             sheetMode = nil
             draftName = ""
         }
@@ -118,6 +119,7 @@ extension TaskListView {
                 case .timesUp, .trashed:
                     notificationsViewModel.cancel(taskURI: taskURI)
             }
+            restartMaintenanceLoop()
         }
     }
 
@@ -129,6 +131,7 @@ extension TaskListView {
         } else {
             viewModel.softDelete(uri: taskURI)
         }
+        restartMaintenanceLoop()
     }
 
     // Extends a timesUp task.
@@ -145,6 +148,7 @@ extension TaskListView {
                 referenceDate: now
             )
             rescheduleNotification(for: viewModel.taskURI(for: task))
+            restartMaintenanceLoop()
         }
     }
 

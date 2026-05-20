@@ -37,7 +37,7 @@ extension TaskState {
 
 // Provides a task state visibility mask.
 extension Set where Element == TaskState {
-    static let defaultTodayVisibility: Set<TaskState> = [.inProgress, .completed, .timesUp]
+    static let defaultTodayVisibility: Set<TaskState> = [.inProgress, .completed]
     static let defaultHistoryVisibility: Set<TaskState> = Set(TaskState.allCases)
 
     init(visibilityMask: Int) {

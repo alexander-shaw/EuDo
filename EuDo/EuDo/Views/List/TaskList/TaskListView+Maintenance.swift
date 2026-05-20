@@ -8,6 +8,8 @@
 import Foundation
 
 extension TaskListView {
+    private static let timesUpTransitionDelaySeconds: TimeInterval = 2
+
     // Sleeps until the next expiration or midnight, then runs maintenance.
     func runMaintenanceLoop() async {
         runMaintenancePass(at: Date())
@@ -24,7 +26,7 @@ extension TaskListView {
     func runMaintenancePass(at now: Date) {
         let dayStart = Calendar.current.startOfDay(for: now)
         lastKnownDay = dayStart
-        viewModel.markExpiredTasksTimesUp(now: now)
+        viewModel.markExpiredTasksTimesUp(now: now, graceSeconds: Self.timesUpTransitionDelaySeconds)
         viewModel.expireOverdueTasks(before: dayStart)
     }
 
@@ -34,7 +36,9 @@ extension TaskListView {
         let startOfToday = calendar.startOfDay(for: now)
         let nextMidnight = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? now.addingTimeInterval(24 * 60 * 60)
         let endOfToday = TaskItem.endOfDay(for: now)
-        let nextExpiration = viewModel.nextInProgressExpiration(after: now, onOrBefore: endOfToday)
+        let nextExpiration = viewModel
+            .nextInProgressExpiration(after: now, onOrBefore: endOfToday)?
+            .addingTimeInterval(Self.timesUpTransitionDelaySeconds)
         return min(nextExpiration ?? nextMidnight, nextMidnight)
     }
 

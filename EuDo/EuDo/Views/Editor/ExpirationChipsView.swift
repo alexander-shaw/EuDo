@@ -13,11 +13,13 @@ struct ExpirationChipsView: View {
     @Binding var expiresAt: Date
     @State private var selection: Selection = .endOfDay
     @State private var hasInitializedSelection = false
+    @State private var now: Date = Date()
+    private let nowTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     private let chipHeight: CGFloat = 34
 
     private var endOfDay: Date {
-        TaskItem.endOfDay(for: Date())
+        TaskItem.endOfDay(for: now)
     }
 
     private enum Selection: Equatable {
@@ -28,7 +30,7 @@ struct ExpirationChipsView: View {
 
     // Provides duration presets.
     private static let durationPresets: [(label: String, seconds: TimeInterval)] = [
-        ("12h", 12 * 3600),
+        // ("12h", 12 * 3600),
         ("6h", 6 * 3600),
         ("3h", 3 * 3600),
         ("1h", 3600),
@@ -38,7 +40,7 @@ struct ExpirationChipsView: View {
 
     // Provides available presets.
     private var availablePresets: [(label: String, seconds: TimeInterval)] {
-        let now = Date()
+        let now = now
         let endOfDay = endOfDay
         return Self.durationPresets.filter { _, seconds in
             now.addingTimeInterval(seconds) < endOfDay
@@ -71,7 +73,11 @@ struct ExpirationChipsView: View {
         }
         .frame(height: chipHeight)
         .onAppear {
+            now = Date()
             initializeSelectionIfNeeded()
+        }
+        .onReceive(nowTimer) { date in
+            now = date
         }
     }
 
@@ -237,7 +243,7 @@ struct ExpirationChipsView: View {
     // Sets the end of day selection.
     private func setEod() {
         selection = .endOfDay
-        expiresAt = endOfDay
+        expiresAt = TaskItem.endOfDay(for: Date())
     }
 
     // Sets a preset selection.
@@ -254,13 +260,18 @@ struct ExpirationChipsView: View {
     // Sets a custom selection.
     private func setCustom(_ newValue: Date) {
         let now = Date()
-        let endOfDay = endOfDay
+        let endOfDay = TaskItem.endOfDay(for: now)
         var customValue = startOfSelectedMinute(newValue)
         
         // DatePicker lower bounds include seconds, but we intentionally normalize to :00.
         // If the user selects the current minute, normalization could slip the value earlier than "now".
         if customValue < now {
-            customValue = startOfSelectedMinute(now).addingTimeInterval(60)
+            let nowMinute = startOfSelectedMinute(now)
+            if customValue == nowMinute {
+                customValue = now
+            } else {
+                customValue = nowMinute.addingTimeInterval(60)
+            }
         }
 
         if customValue >= endOfDay || abs(customValue.timeIntervalSince(endOfDay)) < 2 {
@@ -270,28 +281,28 @@ struct ExpirationChipsView: View {
         }
 
         let remaining = customValue.timeIntervalSince(now)
-        if let preset = availablePresets.first(where: { abs(remaining - $0.seconds) < 60 }) {
-            setPreset(preset.seconds)
-            return
-        }
-
         selection = .custom(seconds: roundToNearestMinute(max(remaining, 0)))
         expiresAt = customValue
     }
 
     // Provides a time chip.
     private var timeChip: some View {
-        let now = Date()
-        let upperBound = max(TaskItem.endOfDay(for: now), now)
+        let lowerBound = startOfSelectedMinute(now)
+        let upperBound = max(startOfSelectedMinute(endOfDay), lowerBound)
         return DatePicker(
             "",
             selection: Binding(
-                get: { expiresAt },
+                get: {
+                    if case .endOfDay = selection {
+                        return lowerBound
+                    }
+                    return min(max(expiresAt, lowerBound), upperBound)
+                },
                 set: { newValue in
                     setCustom(newValue)
                 }
             ),
-            in: now...upperBound,
+            in: lowerBound...upperBound,
             displayedComponents: [.hourAndMinute]
         )
         .labelsHidden()

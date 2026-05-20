@@ -13,7 +13,6 @@ Yes, the name is inspired by Eulerity's name, which itself comes from Euler.
 ## Tech Stack
 
 - Swift / SwiftUI
-- UIKit strictly for native TextEditor component
 - Core Data for local persistence
 - Fully offline and local; no network requests
 - @AppStorage / UserDefaults for lightweight preferences and UI state
@@ -35,13 +34,14 @@ Yes, the name is inspired by Eulerity's name, which itself comes from Euler.
 - The user has no control over dates.
 - No future dates, backlogs, or overdue tasks.
 
-## Out of Scope
+## Out of Scope / Not Required
 
 - User authentication / accounts
 - Scheduling for future days
 - Cloud sync / networking
 - Complex settings screens
 - Multi-device persistence
+- Unit tests
 
 # Approach
 
@@ -56,7 +56,7 @@ Yes, the name is inspired by Eulerity's name, which itself comes from Euler.
 
 ## Product Constraints and Trade-Offs
 
-- Leaning into the “today-only” constraint instead of fighting it.
+- Leaning into the “today-only" constraint instead of fighting it.
 - Simplicity over configurability.
 - Fully offline design reduces complexity, latency, and external dependencies.
 - Limited feature scope enables faster iteration and a more focused user experience.
@@ -74,9 +74,10 @@ Yes, the name is inspired by Eulerity's name, which itself comes from Euler.
 
 - Core Data for local task storage.
 - @AppStorage / UserDefaults to persist lightweight settings and filter preferences.
-- Time-based state transitions driven by the current day boundary.
+- Time-based state transitions driven by expiration times and day-boundary checks.
 - Explicit task states instead of deleting historical meaning immediately.
 - No server state, synchronization logic, or remote persistence concerns.
+- Task identity uses a persisted UUID (`TaskItem.id`) with clean-break model changes.
 
 ## Version Control
 
@@ -166,7 +167,7 @@ I love this field more than ever!  I plan to pursue graduate study in AI.  If I 
 
 | State       | Bounds        | Subtitle                                                                                                |
 | ----------- | ------------- | ------------------------------------------------------------------------------------------------------- |
-| In Progress | Current-day   | Live remaining time: `Nh Nm`, `Nm`, or `Ns` (updates ~every 30s; switches to 1s near the final minute). |
+| In Progress | Current-day   | Live remaining time: `Nh Nm`, `Nm`, or `Ns` (updates every 1s).                                        |
 | In Progress | Out-of-bounds | Expiration timestamp (date+time).                                                                       |
 | Completed   | Current-day   | `Completed <time>` (uses `completedAt`, time-only).                                                     |
 | Completed   | Out-of-bounds | `Completed <date time>` (uses `completedAt`, date+time).                                                |
@@ -179,10 +180,10 @@ I love this field more than ever!  I plan to pursue graduate study in AI.  If I 
 ## Edge Cases
 
 - **No-Op Toggles Removed**: Toggle actions only appear when `canToggleTask(task)` is true.
-- **Completed But Expired**: For current-day completed tasks with `expiresAt < now`, “Mark In Progress” is hidden.
+- **Completed But Expired**: For current-day completed tasks with `expiresAt < now`, "Mark In Progress" is hidden.
 - **Times Up Extensions May Be Absent**: If no extension fits before EOD, only Edit + Delete are shown.
 - **Duplicate Is Clamped**: Duplicate uses `now + totalSeconds`, clamped to today (at most EOD).
-- `**totalSeconds < 60` Duplicates**: If the source task’s `totalSeconds` is under a minute (or invalid), duplication defaults to EOD (never “0 minutes”).
-- **Minute-Accurate Timestamps**: Timestamps are truncated to minutes (e.g. `4:49:59 PM` displays as `4:49 PM`, not `4:50 PM`).
-- **In-Progress Near Expiry**: The “now” ticker switches to 1s updates when the soonest visible in-progress task is within ~90s, so seconds display doesn’t lag.
+- `**totalSeconds < 60` Duplicates**: If the source task’s `totalSeconds` is under a minute (or invalid), duplication defaults to EOD (never "0 minutes").
+- **Minute-Accurate Timestamps**: Timestamps are truncated to minutes (`4:49:59 PM` displays as `4:49 PM`, not `4:50 PM`).
+- **Event-Driven Maintenance**: Expiration maintenance sleeps until the next expiration or midnight, then recomputes (instead of polling every second).
 

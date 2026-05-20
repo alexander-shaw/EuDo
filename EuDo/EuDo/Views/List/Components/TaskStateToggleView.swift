@@ -54,22 +54,29 @@ struct TaskStateToggleView: View {
     private func toggleVisual(at date: Date) -> some View {
         switch task.state {
             case .inProgress:
-                ZStack {
-                    Circle()
-                        .stroke(
-                            Color.secondaryTextColor.opacity(0.25),
-                            lineWidth: lineWidth
-                        )
-                    if let countdownProgress = countdownProgress(at: date) {
+                if isCurrentDay && task.expiresAt <= date {
+                    Image(systemName: "hourglass.tophalf.filled")
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(Color.errorColor)
+                } else {
+                    ZStack {
                         Circle()
-                            .trim(from: 0, to: CGFloat(min(max(countdownProgress, 0), 1)))
                             .stroke(
-                                Color.accentColorToken,
-                                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+                                Color.secondaryTextColor.opacity(0.25),
+                                lineWidth: lineWidth
                             )
-                            .rotationEffect(.degrees(-90))
-                            .scaleEffect(x: -1, y: 1)
-                            .animation(.linear(duration: 1), value: countdownProgress)
+                        if let countdownProgress = countdownProgress(at: date) {
+                            Circle()
+                                .trim(from: 0, to: CGFloat(min(max(countdownProgress, 0), 1)))
+                                .stroke(
+                                    Color.accentColorToken,
+                                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+                                )
+                                .rotationEffect(.degrees(-90))
+                                .scaleEffect(x: -1, y: 1)
+                                .animation(.linear(duration: 1), value: countdownProgress)
+                        }
                     }
                 }
             case .completed:
