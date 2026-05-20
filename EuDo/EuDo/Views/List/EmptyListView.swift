@@ -15,9 +15,10 @@ struct EmptyListView: View {
     var body: some View {
         Button(action: action) {
             Text(message)
+                .fontWeight(.semibold)  // Overrides bodyText font weight.
                 .font(AppTypography.bodyText)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(Color.secondaryTextColor)
+                .foregroundStyle(Color.primaryTextColor)
                 .padding(.horizontal, AppSpacing.xLarge)
                 .padding(.vertical, AppSpacing.xLarge + AppSpacing.xxSmall)
                 .frame(maxWidth: .infinity)

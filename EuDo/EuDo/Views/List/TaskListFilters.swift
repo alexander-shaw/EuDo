@@ -32,7 +32,7 @@ extension TaskState {
             case .completed:
                 return "Completed"
             case .timesUp:
-                return "Times Up"
+                return "Timed Out"
             case .trashed:
                 return "Trashed"
         }
@@ -45,7 +45,7 @@ extension TaskState {
 
 // Provides a task state visibility mask.
 extension Set where Element == TaskState {
-    static let defaultTodayVisibility: Set<TaskState> = [.inProgress, .completed]
+    static let defaultTodayVisibility: Set<TaskState> = [.inProgress, .completed, .timesUp]
     static let defaultHistoryVisibility: Set<TaskState> = Set(TaskState.allCases)
 
     init(visibilityMask: Int) {

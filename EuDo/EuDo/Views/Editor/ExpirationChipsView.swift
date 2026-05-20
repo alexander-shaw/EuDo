@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 // Provides an expiration chips view.
 struct ExpirationChipsView: View {
@@ -47,11 +48,20 @@ struct ExpirationChipsView: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                chipButton(label: "EOD", isSelected: selection == .endOfDay) { setEod() }
+                chipButton(isSelected: selection == .endOfDay) { setEod() } label: {
+                    Text("EOD")
+                }
 
                 ForEach(durationChips, id: \.id) { chip in
-                    chipButton(label: chip.label, isSelected: isSelected(chip)) {
+                    chipButton(isSelected: isSelected(chip)) {
                         handleTap(chip)
+                    } label: {
+                        switch chip.kind {
+                            case .custom:
+                                CountdownChipText(expiresAt: expiresAt)
+                            case .preset:
+                                Text(chip.label)
+                        }
                     }
                 }
 
@@ -65,9 +75,13 @@ struct ExpirationChipsView: View {
         }
     }
 
-    private func chipButton(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func chipButton<Label: View>(
+        isSelected: Bool,
+        action: @escaping () -> Void,
+        @ViewBuilder label: () -> Label
+    ) -> some View {
         Button(action: action) {
-            Text(label)
+            label()
                 .font(.subheadline.weight(.medium))
                 .padding(.horizontal, 12)
                 .frame(height: chipHeight)
@@ -96,6 +110,37 @@ struct ExpirationChipsView: View {
         let label: String
         let seconds: TimeInterval
         let kind: Kind
+    }
+
+    private struct CountdownChipText: View {
+        let expiresAt: Date
+        @State private var now: Date = Date()
+        private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+        var body: some View {
+            Text(formattedRemaining())
+                .monospacedDigit()
+                .onReceive(timer) { date in
+                    now = date
+                }
+        }
+
+        private func formattedRemaining() -> String {
+            let remaining = max(0, Int(floor(expiresAt.timeIntervalSince(now))))
+            if remaining < 60 {
+                return "\(remaining)s"
+            }
+            let minutes = remaining / 60
+            if minutes < 60 {
+                return "\(minutes)m"
+            }
+            let hours = minutes / 60
+            let remMinutes = minutes % 60
+            if remMinutes == 0 {
+                return "\(hours)h"
+            }
+            return "\(hours)h \(remMinutes)m"
+        }
     }
 
     // Provides duration chips.
@@ -201,25 +246,37 @@ struct ExpirationChipsView: View {
         expiresAt = Date().addingTimeInterval(seconds)
     }
 
+    private func startOfSelectedMinute(_ date: Date, calendar: Calendar = .current) -> Date {
+        guard let interval = calendar.dateInterval(of: .minute, for: date) else { return date }
+        return interval.start
+    }
+
     // Sets a custom selection.
     private func setCustom(_ newValue: Date) {
         let now = Date()
         let endOfDay = endOfDay
+        var customValue = startOfSelectedMinute(newValue)
+        
+        // DatePicker lower bounds include seconds, but we intentionally normalize to :00.
+        // If the user selects the current minute, normalization could slip the value earlier than "now".
+        if customValue < now {
+            customValue = startOfSelectedMinute(now).addingTimeInterval(60)
+        }
 
-        if newValue >= endOfDay || abs(newValue.timeIntervalSince(endOfDay)) < 2 {
+        if customValue >= endOfDay || abs(customValue.timeIntervalSince(endOfDay)) < 2 {
             selection = .endOfDay
             expiresAt = endOfDay
             return
         }
 
-        let remaining = newValue.timeIntervalSince(now)
+        let remaining = customValue.timeIntervalSince(now)
         if let preset = availablePresets.first(where: { abs(remaining - $0.seconds) < 60 }) {
             setPreset(preset.seconds)
             return
         }
 
         selection = .custom(seconds: roundToNearestMinute(max(remaining, 0)))
-        expiresAt = newValue
+        expiresAt = customValue
     }
 
     // Provides a time chip.

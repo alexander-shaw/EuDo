@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import CoreData
+import Combine
 
 // Provides a task state toggle view.
 struct TaskStateToggleView: View {
@@ -15,26 +17,35 @@ struct TaskStateToggleView: View {
 
     private let size: CGFloat = 30
     private let lineWidth: CGFloat = 6
+    @State private var now: Date = Date()
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var isCurrentDay: Bool {
+        guard !task.isDeleted, task.managedObjectContext != nil else { return false }
         let bounds = TaskItem.dayBounds(for: referenceDate)
         return task.expiresAt >= bounds.start && task.expiresAt <= bounds.end
     }
 
     var body: some View {
-        // Provides a timeline view for the toggle.
-        TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let now = timeline.date
-            Button {
-                guard canToggle(at: now) else { return }
-                onToggle?()
-            } label: {
-                toggleVisual(at: now)
+        Group {
+            if task.isDeleted || task.managedObjectContext == nil {
+                Color.clear
                     .frame(width: size, height: size)
-                    .contentShape(Circle())
+            } else {
+                Button {
+                    guard canToggle(at: now) else { return }
+                    onToggle?()
+                } label: {
+                    toggleVisual(at: now)
+                        .frame(width: size, height: size)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .allowsHitTesting(canToggle(at: now))
+                .onReceive(timer) { date in
+                    now = date
+                }
             }
-            .buttonStyle(.plain)
-            .allowsHitTesting(canToggle(at: now))
         }
     }
 
@@ -58,6 +69,7 @@ struct TaskStateToggleView: View {
                             )
                             .rotationEffect(.degrees(-90))
                             .scaleEffect(x: -1, y: 1)
+                            .animation(.linear(duration: 1), value: countdownProgress)
                     }
                 }
             case .completed:
@@ -78,6 +90,7 @@ struct TaskStateToggleView: View {
 
     // Provides a countdown progress.
     private func countdownProgress(at date: Date) -> Double? {
+        guard !task.isDeleted, task.managedObjectContext != nil else { return nil }
         guard isCurrentDay, task.state == .inProgress else { return nil }
 
         let total = task.expiresAt.timeIntervalSince(task.createdAt)
@@ -92,6 +105,7 @@ struct TaskStateToggleView: View {
 
     // Checks if a task can be toggled.
     private func canToggle(at date: Date) -> Bool {
+        guard !task.isDeleted, task.managedObjectContext != nil else { return false }
         guard isCurrentDay else { return false }
         switch task.state {
             case .inProgress, .trashed:

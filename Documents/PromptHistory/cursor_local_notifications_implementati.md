@@ -1,5 +1,5 @@
 # Local notifications implementation
-_Exported on 5/19/2026 at 23:35:59 PDT from Cursor (3.4.16)_
+_Exported on 5/19/2026 at 23:40:27 PDT from Cursor (3.4.16)_
 
 ---
 
@@ -244,4 +244,39 @@ Then in your tracker:
 If needed, add a tiny debounce (e.g., ignore opens within 2–5 seconds of previous event).
 
 If you want, I can outline exactly how to wire this into your current Core Data stack with minimal code paths (still no edits unless you switch to Agent mode).
+
+---
+
+**User**
+
+Summarize the above into a list of one-liners, which can be copy-pasted for future reference.
+
+---
+
+**Cursor**
+
+- Track app-open analytics in app lifecycle code (`EuDoApp`/service), not in `TaskListView`.
+- Use `scenePhase` and log an open whenever phase changes to `.active`.
+- Counting `.active` captures cold starts and returns from background, not just launches.
+- `TaskListView` is not reliable for lifecycle logging because views can re-render/recreate.
+- A minimal Core Data entity like `AppOpenEvent(openedAt: Date)` is enough to start.
+- Save an `AppOpenEvent` record each time app state enters active.
+- If needed later, add an optional `source` field (e.g., `coldStart` vs `resume`).
+- Add a short debounce window (e.g., 2–5s) to avoid duplicate opens from quick phase flips.
+- `UIApplication.didBecomeActiveNotification` is an alternative, but `scenePhase == .active` is usually sufficient.
+- This open-event stream can later feed lightweight on-device notification timing logic.
+
+---
+
+**User**
+
+Add the above one-liners into the README and format them as sub-bullets: @README.md (116-125) 
+
+---
+
+**Cursor**
+
+I’ll update `README.md` by converting those lines into properly formatted sub-bullets in place. I’ll keep the wording as-is and only adjust markdown structure.
+
+Updated `README.md` so those lines are now formatted as sub-bullets under the existing notification-ML future-work item in `EuDo's Future Work`.
 

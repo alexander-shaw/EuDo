@@ -12,8 +12,29 @@ struct TaskEditorSheet: View {
     let title: String
     @Binding var name: String
     @Binding var expiresAt: Date
+    @Binding var state: TaskState
+    var showsStateControl: Bool = false
     var onCancel: () -> Void
     var onSave: () -> Void
+
+    private var stateLabel: String {
+        switch state {
+            case .inProgress:
+                return "In Progress"
+            case .completed:
+                return "Completed"
+            case .timesUp:
+                return "Timed Out"
+            case .trashed:
+                return "Deleted"
+        }
+    }
+
+    private var canSave: Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        return TaskListViewModel.totalSeconds(until: expiresAt, referenceDate: Date()) > 0
+    }
 
     var body: some View {
         NavigationStack {
@@ -33,10 +54,28 @@ struct TaskEditorSheet: View {
                         .hapticFeedback(.medium)
                     },
                     trailing: {
-                        Button("Save", action: onSave)
-                            .font(AppTypography.actionButton)
-                            .hapticFeedback(.medium)
-                            .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        HStack(spacing: AppSpacing.small) {
+                            if showsStateControl {
+                                Menu {
+                                    Button("In Progress") { state = .inProgress }
+                                        .disabled(!canSave)
+                                    Button("Completed") { state = .completed }
+                                    Button("Deleted", role: .destructive) { state = .trashed }
+                                } label: {
+                                    Text(stateLabel)
+                                        .font(AppTypography.captionButton)
+                                        .foregroundStyle(Color.secondaryTextColor)
+                                        .padding(.horizontal, AppSpacing.xSmall)
+                                        .padding(.vertical, AppSpacing.xxSmall)
+                                        .contentShape(Rectangle())
+                                }
+                            }
+
+                            Button("Save", action: onSave)
+                                .font(AppTypography.actionButton)
+                                .hapticFeedback(.medium)
+                                .disabled(!canSave)
+                        }
                     }
                 )
 

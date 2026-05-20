@@ -14,6 +14,7 @@ struct TaskListView: View {
     @State private var sheetMode: TaskSheetMode?  // The task sheet mode.
     @State private var draftName = ""  // The draft name.
     @State private var draftExpiresAt = TaskItem.endOfDay(for: Date())  // The draft expiration date.
+    @State private var draftState: TaskState = .inProgress
     @State private var lastKnownDay = Calendar.current.startOfDay(for: Date())  // The last known day.
     
     @AppStorage("taskList.scope") private var scopeRawValue = TaskListScope.today.rawValue
@@ -97,20 +98,11 @@ struct TaskListView: View {
 
                 ZStack(alignment: .bottomTrailing) {
                     List {
-                        if displayItems.isEmpty {
-                            EmptyListView(message: emptyListMessage) {
-                                presentCreate(after: nil)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(rowInsets)
-                            .listRowBackground(Color.backgroundColor)
-                            .moveDisabled(true)
-                        } else {
+                        if !displayItems.isEmpty {
                             if canShowInsertGaps {
                                 InsertGap(height: AppSpacing.xxLarge - AppSpacing.medium) {
                                     presentCreate(
-                                        after: nil,
+                                        after: -1,
                                         defaultExpiresAt: defaultExpirationForGap(previousTask: nil, nextTask: displayItems.first)
                                     )
                                 }
@@ -121,88 +113,110 @@ struct TaskListView: View {
                             }
 
                             ForEach(Array(displayItems.enumerated()), id: \.element.objectID) { index, task in
-                                TaskRow(
-                                    task: task,
-                                    referenceDate: Date(),
-                                    showsCreatedDate: scope == .history,
-                                    onToggle: {
-                                        toggleTaskState(task)
-                                    }
-                                )
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    presentEdit(for: task)
-                                }
-                                .contextMenu {
-                                    Button {
-                                        presentEdit(for: task)
-                                    } label: {
-                                        Label("Edit", systemImage: "pencil")
-                                    }
-
-                                    if task.state == .timesUp {
-                                        ForEach(availableTimesUpExtensionOptions, id: \.seconds) { option in
-                                            Button {
-                                                extendTimesUpTask(task, by: option.seconds)
-                                            } label: {
-                                                Label(option.title, systemImage: "plus")
-                                            }
-                                        }
-                                    } else if task.state != .trashed || canToggleTask(task) {
-                                        Button {
+                                VStack(spacing: 0) {
+                                    TaskRow(
+                                        task: task,
+                                        referenceDate: lastKnownDay,
+                                        subtitle: subtitle(for: task, now: Date()),
+                                        countdownTo: countdownDate(for: task),
+                                        onToggle: {
                                             toggleTaskState(task)
+                                        }
+                                    )
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        if isEditable(task) {
+                                            presentEdit(for: task)
+                                        } else if !isInCurrentDayBounds(task.expiresAt) {
+                                            presentDuplicate(for: task)
+                                        }
+                                    }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: task.state != .trashed) {
+                                        Button(role: .destructive) {
+                                            withAnimation {
+                                                deleteTask(task)
+                                            }
                                         } label: {
-                                            Label(toggleActionTitle(for: task), systemImage: toggleActionSymbol(for: task))
+                                            Label("Delete", systemImage: task.state == .trashed ? "flame.fill" : "trash")
+                                        }
+                                    }
+                                    .contextMenu {
+                                        if isEditable(task) {
+                                            Button {
+                                                presentEdit(for: task)
+                                            } label: {
+                                                Label("Edit", systemImage: "pencil")
+                                            }
+                                        } else if !isInCurrentDayBounds(task.expiresAt) {
+                                            Button {
+                                                presentDuplicate(for: task)
+                                            } label: {
+                                                Label("Duplicate", systemImage: "doc.on.doc")
+                                            }
+                                        }
+
+                                        if isInCurrentDayBounds(task.expiresAt) {
+                                            if task.state == .timesUp {
+                                                ForEach(availableTimesUpExtensionOptions, id: \.seconds) { option in
+                                                    Button {
+                                                        extendTimesUpTask(task, by: option.seconds)
+                                                    } label: {
+                                                        Label(option.title, systemImage: "plus")
+                                                    }
+                                                }
+                                            } else if canToggleTask(task) {
+                                                Button {
+                                                    toggleTaskState(task)
+                                                } label: {
+                                                    Label(toggleActionTitle(for: task), systemImage: toggleActionSymbol(for: task))
+                                                }
+                                            }
+                                        }
+
+                                        Button(role: .destructive) {
+                                            withAnimation {
+                                                deleteTask(task)
+                                            }
+                                        } label: {
+                                            Label("Delete", systemImage: task.state == .trashed ? "flame.fill" : "trash")
                                         }
                                     }
 
-                                    if task.state == .trashed {
-                                        Button(role: .destructive) {
-                                            withAnimation {
-                                                let taskURI = viewModel.taskURI(for: task)
-                                                notificationsViewModel.cancel(taskURI: taskURI)
-                                                viewModel.deleteForever(uri: taskURI)
-                                            }
-                                        } label: {
-                                            Label("Delete Forever", systemImage: "trash.slash")
-                                        }
-                                    } else {
-                                        Button(role: .destructive) {
-                                            withAnimation {
-                                                let taskURI = viewModel.taskURI(for: task)
-                                                notificationsViewModel.cancel(taskURI: taskURI)
-                                                viewModel.softDelete(uri: taskURI)
-                                            }
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
+                                    if canShowInsertGaps {
+                                        InsertGap {
+                                            let nextTask = (index + 1) < displayItems.count ? displayItems[index + 1] : nil
+                                            presentCreate(
+                                                after: index,
+                                                defaultExpiresAt: defaultExpirationForGap(previousTask: task, nextTask: nextTask)
+                                            )
                                         }
                                     }
                                 }
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(rowInsets)
                                 .listRowBackground(Color.backgroundColor)
-                                .moveDisabled(true)
-
-                                if canShowInsertGaps {
-                                    InsertGap {
-                                        let nextTask = (index + 1) < displayItems.count ? displayItems[index + 1] : nil
-                                        presentCreate(
-                                            after: index,
-                                            defaultExpiresAt: defaultExpirationForGap(previousTask: task, nextTask: nextTask)
-                                        )
-                                    }
-                                    .listRowSeparator(.hidden)
-                                    .listRowInsets(rowInsets)
-                                    .listRowBackground(Color.backgroundColor)
-                                    .moveDisabled(true)
-                                }
+                                .moveDisabled(scope != .today)
+                            }
+                            .onMove { fromOffsets, toOffset in
+                                guard scope == .today else { return }
+                                let items = displayItems
+                                viewModel.moveTasks(fromOffsets: fromOffsets, toOffset: toOffset, existingItems: items)
                             }
                         }
                     }
-                    .environment(\.editMode, .constant(.active))
                     .listStyle(.plain)
                     .scrollIndicators(.hidden)
                     .scrollContentBackground(.hidden)
+                    .overlay {
+                        if displayItems.isEmpty {
+                            EmptyListView(message: emptyListMessage) {
+                                presentCreate(after: nil)
+                            }
+                            .padding(.leading, rowInsets.leading)
+                            .padding(.trailing, rowInsets.trailing)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        }
+                    }
 
                     FloatingPlusButton {
                         presentCreate(after: nil)
@@ -221,6 +235,8 @@ struct TaskListView: View {
                     title: mode.title,
                     name: $draftName,
                     expiresAt: $draftExpiresAt,
+                    state: $draftState,
+                    showsStateControl: mode.showsStateControl,
                     onCancel: {
                         sheetMode = nil
                         draftName = ""
@@ -239,6 +255,7 @@ struct TaskListView: View {
     private func presentCreate(after index: Int?, defaultExpiresAt: Date = TaskItem.endOfDay(for: Date())) {
         draftName = ""
         draftExpiresAt = defaultExpiresAt
+        draftState = .inProgress
         sheetMode = .create(insertAfterIndex: index)
     }
 
@@ -246,13 +263,24 @@ struct TaskListView: View {
     private func presentEdit(for task: TaskItem) {
         draftName = task.name
         draftExpiresAt = task.expiresAt
+        draftState = task.state
         sheetMode = .edit(taskURI: viewModel.taskURI(for: task))
+    }
+
+    private func presentDuplicate(for task: TaskItem) {
+        draftName = task.name
+        draftExpiresAt = duplicateExpiration(for: task)
+        draftState = .inProgress
+        sheetMode = .create(insertAfterIndex: nil)
     }
 
     // Saves a task.
     private func saveTask(for mode: TaskSheetMode) {
         let trimmedName = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
+
+        let now = Date()
+        guard TaskListViewModel.totalSeconds(until: draftExpiresAt, referenceDate: now) > 0 else { return }
 
         withAnimation {
             var taskURI: String?
@@ -264,13 +292,27 @@ struct TaskListView: View {
                         insertAfterIndex: insertAfterIndex,
                         existingItems: displayItems
                     )
+                    if taskURI != nil {
+                        ensureInProgressVisible()
+                    }
                 case .edit(let existingTaskURI):
-                    viewModel.updateTask(uri: existingTaskURI, name: trimmedName, expiresAt: draftExpiresAt)
+                    viewModel.updateTask(
+                        uri: existingTaskURI,
+                        name: trimmedName,
+                        expiresAt: draftExpiresAt,
+                        state: draftState,
+                        referenceDate: now
+                    )
                     taskURI = existingTaskURI
             }
 
             if let taskURI {
-                rescheduleNotification(for: taskURI)
+                switch draftState {
+                    case .inProgress:
+                        rescheduleNotification(for: taskURI)
+                    case .completed, .timesUp, .trashed:
+                        notificationsViewModel.cancel(taskURI: taskURI)
+                }
             }
             sheetMode = nil
             draftName = ""
@@ -286,12 +328,91 @@ struct TaskListView: View {
 
     // Provides a list title.
     private var listTitle: String {
-        scope == .history ? "History" : dayTitle
+        scope == .history ? TaskListScope.history.title : dayTitle
     }
 
     // Provides a day bounds.
     private var dayBounds: (start: Date, end: Date) {
         TaskItem.dayBounds(for: lastKnownDay)
+    }
+
+    private func isInCurrentDayBounds(_ date: Date) -> Bool {
+        let bounds = dayBounds
+        return date >= bounds.start && date <= bounds.end
+    }
+
+    private func isEditable(_ task: TaskItem) -> Bool {
+        isInCurrentDayBounds(task.expiresAt) && task.state != .trashed
+    }
+
+    private func countdownDate(for task: TaskItem) -> Date? {
+        guard scope == .today else { return nil }
+        guard task.state == .inProgress else { return nil }
+        guard isInCurrentDayBounds(task.expiresAt) else { return nil }
+        return task.expiresAt
+    }
+
+    private func subtitle(for task: TaskItem, now: Date) -> String {
+        switch task.state {
+            case .inProgress:
+                if scope == .today, isInCurrentDayBounds(task.expiresAt) {
+                    return remainingSubtitle(for: task, now: now)
+                }
+                return timestampString(task.expiresAt, inCurrentDayBounds: isInCurrentDayBounds(task.expiresAt))
+            case .completed:
+                if let completedAt = task.completedAt {
+                    return "Completed \(timestampString(completedAt, inCurrentDayBounds: isInCurrentDayBounds(completedAt)))"
+                }
+                return "Completed"
+            case .trashed:
+                return "Deleted \(timestampString(task.deletedAt, inCurrentDayBounds: isInCurrentDayBounds(task.deletedAt)))"
+            case .timesUp:
+                return "Timed Out \(timestampString(task.expiresAt, inCurrentDayBounds: isInCurrentDayBounds(task.expiresAt)))"
+        }
+    }
+
+    private func remainingSubtitle(for task: TaskItem, now: Date) -> String {
+        let remaining = max(0, Int(floor(task.expiresAt.timeIntervalSince(now))))
+        if remaining < 60 {
+            return "\(remaining)s"
+        }
+        let minutes = remaining / 60
+        if minutes < 60 {
+            return "\(minutes)m"
+        }
+        let hours = minutes / 60
+        let remMinutes = minutes % 60
+        if remMinutes == 0 {
+            return "\(hours)h"
+        }
+        return "\(hours)h \(remMinutes)m"
+    }
+
+    private func timestampString(_ date: Date, inCurrentDayBounds: Bool) -> String {
+        let display = truncateToMinute(date)
+        return (inCurrentDayBounds ? timeOnlyFormatter : dateTimeFormatter).string(from: display)
+    }
+
+    private func truncateToMinute(_ date: Date, calendar: Calendar = .current) -> Date {
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        return calendar.date(from: components) ?? date
+    }
+
+    private func duplicateExpiration(for task: TaskItem) -> Date {
+        let now = Date()
+        let endOfDay = TaskItem.endOfDay(for: now)
+        let seconds = task.totalSeconds
+        guard seconds >= 60 else { return endOfDay }
+
+        let proposed = now.addingTimeInterval(TimeInterval(seconds))
+        let clamped = min(max(proposed, now), endOfDay)
+
+        // Ensure the duplicated task never lands in the current minute (which would appear as "0 minutes").
+        if truncateToMinute(clamped) <= truncateToMinute(now) {
+            return endOfDay
+        }
+
+        return clamped
     }
 
     // Provides a day items all states.
@@ -349,8 +470,6 @@ struct TaskListView: View {
     // Sorts usual items.
     private func sortUsualItems(_ items: [TaskItem]) -> [TaskItem] {
         items.sorted { lhs, rhs in
-            if lhs.state.rawValue != rhs.state.rawValue { return lhs.state.rawValue < rhs.state.rawValue }
-            if lhs.expiresAt != rhs.expiresAt { return lhs.expiresAt < rhs.expiresAt }
             if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
             return lhs.createdAt < rhs.createdAt
         }
@@ -362,9 +481,10 @@ struct TaskListView: View {
         return items.sorted { lhs, rhs in
             let lhsDay = calendar.startOfDay(for: lhs.expiresAt)
             let rhsDay = calendar.startOfDay(for: rhs.expiresAt)
-            if lhsDay != rhsDay { return lhsDay > rhsDay }
-            if lhs.state.rawValue != rhs.state.rawValue { return lhs.state.rawValue < rhs.state.rawValue }
-            if lhs.expiresAt != rhs.expiresAt { return lhs.expiresAt < rhs.expiresAt }
+            // Earliest day first (chronological).
+            if lhsDay != rhsDay { return lhsDay < rhsDay }
+
+            // Within a day, use the same ordering as Today (sortOrder).
             if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
             return lhs.createdAt < rhs.createdAt
         }
@@ -382,7 +502,7 @@ struct TaskListView: View {
     // Provides an empty list message.
     private var emptyListMessage: String {
         if scope == .history {
-            return "No tasks in history."
+            return "No tasks ever.  Tap to get started!"
         }
         return hasCompletedToday
             ? "Out of tasks?  Tap to add more!"
@@ -415,7 +535,31 @@ struct TaskListView: View {
         }
 
         withAnimation {
-            viewModel.toggleCompletion(uri: viewModel.taskURI(for: task), referenceDate: Date())
+            let taskURI = viewModel.taskURI(for: task)
+            let oldState = task.state
+            viewModel.toggleCompletion(uri: taskURI, referenceDate: Date())
+            
+            guard let updated = viewModel.task(for: taskURI) else { return }
+            guard updated.state != oldState else { return }
+            
+            switch updated.state {
+                case .completed:
+                    notificationsViewModel.cancel(taskURI: taskURI)
+                case .inProgress:
+                    rescheduleNotification(for: taskURI)
+                case .timesUp, .trashed:
+                    notificationsViewModel.cancel(taskURI: taskURI)
+            }
+        }
+    }
+
+    private func deleteTask(_ task: TaskItem) {
+        let taskURI = viewModel.taskURI(for: task)
+        notificationsViewModel.cancel(taskURI: taskURI)
+        if task.state == .trashed {
+            viewModel.deleteForever(uri: taskURI)
+        } else {
+            viewModel.softDelete(uri: taskURI)
         }
     }
 
@@ -439,10 +583,11 @@ struct TaskListView: View {
     // Reschedules a notification for a task.
     private func rescheduleNotification(for taskURI: String) {
         guard let task = viewModel.task(for: taskURI) else { return }
+        let remaining = TaskListViewModel.totalSeconds(until: task.expiresAt, referenceDate: Date())
         notificationsViewModel.reschedule(
             taskURI: taskURI,
             taskName: task.name,
-            totalSeconds: task.totalSeconds
+            totalSeconds: remaining
         )
     }
 
@@ -486,19 +631,17 @@ struct TaskListView: View {
     @ViewBuilder
     private var listOptionsMenu: some View {
         Menu {
-            Section("View") {
-                ForEach(TaskListScope.allCases, id: \.rawValue) { listScope in
-                    Button {
-                        setScope(listScope)
-                    } label: {
-                        menuRow(title: listScope.title, isSelected: scope == listScope)
-                    }
+            Section("Show") {
+                Button {
+                    setScope(scope == .today ? .history : .today)
+                } label: {
+                    Text(scope == .today ? "All History" : "Today")
                 }
             }
 
             Divider()
 
-            Section("Show") {
+            Section("States") {
                 ForEach(stateMenuOrder, id: \.rawValue) { taskState in
                     Button {
                         toggleVisibility(taskState)
@@ -561,6 +704,17 @@ struct TaskListView: View {
         }
     }
 
+    private func ensureInProgressVisible() {
+        switch scope {
+            case .today:
+                guard !todayVisibleStates.contains(.inProgress) else { return }
+                todayStateMask = todayVisibleStates.union([.inProgress]).visibilityMask
+            case .history:
+                guard !historyVisibleStates.contains(.inProgress) else { return }
+                historyStateMask = historyVisibleStates.union([.inProgress]).visibilityMask
+        }
+    }
+
     // Resets the filters.
     private func resetFilters() {
         scopeRawValue = TaskListScope.today.rawValue
@@ -586,11 +740,34 @@ struct TaskListView: View {
 
 }
 
+private let timeOnlyFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .none
+    formatter.timeStyle = .short
+    return formatter
+}()
+
+private let dateTimeFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .short
+    formatter.timeStyle = .short
+    return formatter
+}()
+
 // Provides a task sheet mode.
 private extension TaskListView {
     enum TaskSheetMode: Identifiable {
         case create(insertAfterIndex: Int?)
         case edit(taskURI: String)
+
+        var showsStateControl: Bool {
+            switch self {
+                case .create:
+                    return false
+                case .edit:
+                    return true
+            }
+        }
 
         var id: String {
             switch self {

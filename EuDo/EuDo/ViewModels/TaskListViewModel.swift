@@ -8,37 +8,136 @@
 import Foundation
 import CoreData
 
+// Provides a task list view model.
 struct TaskListViewModel {
     let viewContext: NSManagedObjectContext
 
+    // Provides the sort group offset seconds, which is the time interval between sort groups.
+    private static let sortGroupOffsetSeconds: TimeInterval = 200_000
+    
+    // Provides the default sort order for a task.
+    private static func defaultSortOrder(
+        state: TaskState,
+        expiresAt: Date,
+        completedAt: Date?,
+        deletedAt: Date
+    ) -> Double {
+        let baseTime: TimeInterval = {
+            switch state {
+                case .inProgress:
+                    return expiresAt.timeIntervalSince1970
+                case .completed:
+                    return (completedAt ?? expiresAt).timeIntervalSince1970
+                case .timesUp:
+                    return expiresAt.timeIntervalSince1970
+                case .trashed:
+                    return deletedAt.timeIntervalSince1970
+            }
+        }()
+        
+        let groupRank: TimeInterval = {
+            switch state {
+                case .inProgress:
+                    return 0
+                case .completed, .timesUp:
+                    return 1
+                case .trashed:
+                    return 2
+            }
+        }()
+        
+        return baseTime + groupRank * sortGroupOffsetSeconds
+    }
+
     // Creates a new task and returns its URI.
-    func createTask(name: String, expiresAt: Date, insertAfterIndex: Int?, existingItems: [TaskItem]) -> String {
+    func createTask(name: String, expiresAt: Date, insertAfterIndex: Int?, existingItems: [TaskItem]) -> String? {
         let now = Date()
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return nil }
+
+        let totalSeconds = Self.totalSeconds(until: expiresAt, referenceDate: now)
+        guard totalSeconds > 0 else { return nil }
+
         let newItem = TaskItem(context: viewContext)
-        newItem.name = name
+        newItem.name = trimmedName
         newItem.createdAt = now
         newItem.expiresAt = expiresAt
         newItem.lastUpdatedAt = now
         newItem.deletedAt = TaskItem.endOfDay(for: now)
-        newItem.totalSeconds = Self.totalSeconds(until: expiresAt, referenceDate: now)
+        newItem.totalSeconds = totalSeconds
         newItem.state = .inProgress
-        newItem.sortOrder = Self.sortOrder(insertAfter: insertAfterIndex, in: existingItems)
+        if let insertAfterIndex {
+            newItem.sortOrder = Self.sortOrder(insertAfter: insertAfterIndex, in: existingItems)
+        } else {
+            newItem.sortOrder = Self.defaultSortOrder(
+                state: newItem.state,
+                expiresAt: expiresAt,
+                completedAt: nil,
+                deletedAt: newItem.deletedAt
+            )
+        }
         save()
         return taskURI(for: newItem)
     }
 
-    // Updates a task and returns its URI.
-    func updateTask(uri: String, name: String, expiresAt: Date, referenceDate: Date = Date()) -> String {
+    // Updates a task.
+    func updateTask(uri: String, name: String, expiresAt: Date, state: TaskState? = nil, referenceDate: Date = Date()) {
         guard let task = task(for: uri) else { return }
-        task.name = name
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+
+        let totalSeconds = Self.totalSeconds(until: expiresAt, referenceDate: referenceDate)
+        guard totalSeconds > 0 else { return }
+
+        let oldState = task.state
+        let oldExpiresAt = task.expiresAt
+        let oldCompletedAt = task.completedAt
+        let oldDeletedAt = task.deletedAt
+        let oldDefaultSortOrder = Self.defaultSortOrder(
+            state: oldState,
+            expiresAt: oldExpiresAt,
+            completedAt: oldCompletedAt,
+            deletedAt: oldDeletedAt
+        )
+        let wasUsingDefaultSortOrder = abs(task.sortOrder - oldDefaultSortOrder) < 1
+
+        task.name = trimmedName
         task.expiresAt = expiresAt
         task.lastUpdatedAt = referenceDate
-        task.totalSeconds = Self.totalSeconds(until: expiresAt, referenceDate: referenceDate)
+        task.totalSeconds = totalSeconds
+
+        if let state {
+            task.state = state
+            if state != oldState {
+                switch state {
+                    case .inProgress:
+                        task.completedAt = nil
+                    case .completed:
+                        task.completedAt = referenceDate
+                    case .timesUp:
+                        task.completedAt = nil
+                    case .trashed:
+                        task.completedAt = nil
+                        task.deletedAt = referenceDate
+                }
+            }
+        }
+
         reconcileStateAfterUpdate(task, referenceDate: referenceDate)
+        
+        let newDefaultSortOrder = Self.defaultSortOrder(
+            state: task.state,
+            expiresAt: task.expiresAt,
+            completedAt: task.completedAt,
+            deletedAt: task.deletedAt
+        )
+        if state != nil || wasUsingDefaultSortOrder {
+            task.sortOrder = newDefaultSortOrder
+        }
         save()
     }
 
-    // Moves tasks and returns their new URIs.
+    // Moves tasks by updating their sort order.
     func moveTasks(fromOffsets: IndexSet, toOffset: Int, existingItems: [TaskItem]) {
         guard !fromOffsets.isEmpty, !existingItems.isEmpty else { return }
 
@@ -55,9 +154,41 @@ struct TaskListViewModel {
         reordered.insert(contentsOf: movingItems, at: insertionIndex)
 
         let now = Date()
-        for (index, task) in reordered.enumerated() {
-            task.sortOrder = Double(index) * 10
-            task.lastUpdatedAt = now
+        
+        let movedStart = insertionIndex
+        let movedEnd = insertionIndex + movingItems.count - 1
+        
+        let beforeOrder: Double = {
+            guard movedStart > 0 else {
+                let after = reordered.indices.contains(movedEnd + 1) ? reordered[movedEnd + 1].sortOrder : 0
+                return after - Double(movingItems.count + 1) * 10
+            }
+            return reordered[movedStart - 1].sortOrder
+        }()
+        
+        let afterOrder: Double = {
+            guard movedEnd < reordered.count - 1 else {
+                let before = reordered.indices.contains(movedStart - 1) ? reordered[movedStart - 1].sortOrder : 0
+                return before + Double(movingItems.count + 1) * 10
+            }
+            return reordered[movedEnd + 1].sortOrder
+        }()
+        
+        let gap = afterOrder - beforeOrder
+        if gap <= 0 || gap < Double(movingItems.count + 1) * 1e-6 {
+            // Fallback: renormalize the entire list if we ever lose spacing.
+            for (index, task) in reordered.enumerated() {
+                task.sortOrder = Double(index) * 10
+                task.lastUpdatedAt = now
+            }
+            save()
+            return
+        }
+        
+        for i in 0..<movingItems.count {
+            let t = Double(i + 1) / Double(movingItems.count + 1)
+            movingItems[i].sortOrder = beforeOrder + gap * t
+            movingItems[i].lastUpdatedAt = now
         }
 
         save()
@@ -76,6 +207,12 @@ struct TaskListViewModel {
         for task in overdue {
             task.state = .timesUp
             task.lastUpdatedAt = now
+            task.sortOrder = Self.defaultSortOrder(
+                state: task.state,
+                expiresAt: task.expiresAt,
+                completedAt: task.completedAt,
+                deletedAt: task.deletedAt
+            )
         }
         save()
     }
@@ -95,6 +232,12 @@ struct TaskListViewModel {
             task.state = .timesUp
             task.completedAt = nil
             task.lastUpdatedAt = now
+            task.sortOrder = Self.defaultSortOrder(
+                state: task.state,
+                expiresAt: task.expiresAt,
+                completedAt: task.completedAt,
+                deletedAt: task.deletedAt
+            )
         }
         save()
     }
@@ -123,6 +266,12 @@ struct TaskListViewModel {
                 task.deletedAt = TaskItem.endOfDay(for: referenceDate)
         }
         task.lastUpdatedAt = referenceDate
+        task.sortOrder = Self.defaultSortOrder(
+            state: task.state,
+            expiresAt: task.expiresAt,
+            completedAt: task.completedAt,
+            deletedAt: task.deletedAt
+        )
         save()
     }
 
@@ -151,6 +300,12 @@ struct TaskListViewModel {
         task.state = .trashed
         task.deletedAt = now
         task.lastUpdatedAt = now
+        task.sortOrder = Self.defaultSortOrder(
+            state: task.state,
+            expiresAt: task.expiresAt,
+            completedAt: task.completedAt,
+            deletedAt: task.deletedAt
+        )
         save()
     }
 
