@@ -7,10 +7,13 @@
 
 import Foundation
 import CoreData
+import os
 
 // Provides a task list view model.
 struct TaskListViewModel {
     let viewContext: NSManagedObjectContext
+    private let notificationsViewModel = NotificationsViewModel()
+    private static let logger = Logger(subsystem: "EuDo", category: "TaskListViewModel")
 
     // Provides the sort group offset seconds, which is the time interval between sort groups.
     private static let sortGroupOffsetSeconds: TimeInterval = 200_000
@@ -196,50 +199,68 @@ struct TaskListViewModel {
 
     // Expires overdue tasks.
     func expireOverdueTasks(before dayStart: Date) {
-        let request = TaskItem.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "taskState == %d AND expiresAt < %@",
-            Int(TaskState.inProgress.rawValue),
-            dayStart as NSDate
-        )
-        guard let overdue = try? viewContext.fetch(request), !overdue.isEmpty else { return }
-        let now = Date()
-        for task in overdue {
-            task.state = .timesUp
-            task.lastUpdatedAt = now
-            task.sortOrder = Self.defaultSortOrder(
-                state: task.state,
-                expiresAt: task.expiresAt,
-                completedAt: task.completedAt,
-                deletedAt: task.deletedAt
+        viewContext.performAndWait {
+            let request = TaskItem.fetchRequest()
+            request.predicate = NSPredicate(
+                format: "taskState == %d AND expiresAt < %@",
+                Int(TaskState.inProgress.rawValue),
+                dayStart as NSDate
             )
+
+            do {
+                let overdue = try viewContext.fetch(request)
+                guard !overdue.isEmpty else { return }
+                let now = Date()
+                for task in overdue {
+                    task.state = .timesUp
+                    task.lastUpdatedAt = now
+                    task.sortOrder = Self.defaultSortOrder(
+                        state: task.state,
+                        expiresAt: task.expiresAt,
+                        completedAt: task.completedAt,
+                        deletedAt: task.deletedAt
+                    )
+                }
+                saveWithinContextQueue()
+            } catch {
+                let nsError = error as NSError
+                Self.logger.error("Failed to fetch overdue tasks: \(nsError.localizedDescription, privacy: .public)")
+            }
         }
-        save()
     }
 
     // Marks expired tasks as timesUp.
     func markExpiredTasksTimesUp(now: Date) {
-        let bounds = TaskItem.dayBounds(for: now)
-        let request = TaskItem.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "taskState == %d AND expiresAt >= %@ AND expiresAt < %@",
-            Int(TaskState.inProgress.rawValue),
-            bounds.start as NSDate,
-            now as NSDate
-        )
-        guard let expired = try? viewContext.fetch(request), !expired.isEmpty else { return }
-        for task in expired {
-            task.state = .timesUp
-            task.completedAt = nil
-            task.lastUpdatedAt = now
-            task.sortOrder = Self.defaultSortOrder(
-                state: task.state,
-                expiresAt: task.expiresAt,
-                completedAt: task.completedAt,
-                deletedAt: task.deletedAt
+        viewContext.performAndWait {
+            let bounds = TaskItem.dayBounds(for: now)
+            let request = TaskItem.fetchRequest()
+            request.predicate = NSPredicate(
+                format: "taskState == %d AND expiresAt >= %@ AND expiresAt < %@",
+                Int(TaskState.inProgress.rawValue),
+                bounds.start as NSDate,
+                now as NSDate
             )
+
+            do {
+                let expired = try viewContext.fetch(request)
+                guard !expired.isEmpty else { return }
+                for task in expired {
+                    task.state = .timesUp
+                    task.completedAt = nil
+                    task.lastUpdatedAt = now
+                    task.sortOrder = Self.defaultSortOrder(
+                        state: task.state,
+                        expiresAt: task.expiresAt,
+                        completedAt: task.completedAt,
+                        deletedAt: task.deletedAt
+                    )
+                }
+                saveWithinContextQueue()
+            } catch {
+                let nsError = error as NSError
+                Self.logger.error("Failed to fetch expired tasks: \(nsError.localizedDescription, privacy: .public)")
+            }
         }
-        save()
     }
 
     // Toggles a task's completion state and returns its URI.
@@ -318,46 +339,105 @@ struct TaskListViewModel {
 
     // Hard deletes expired trashed tasks.
     func deleteExpiredTrashedTasks(referenceDate: Date = Date()) {
-        let cutoff = referenceDate.addingTimeInterval(-24 * 60 * 60)
-        let request = TaskItem.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "taskState == %d AND deletedAt <= %@",
-            Int(TaskState.trashed.rawValue),
-            cutoff as NSDate
-        )
+        viewContext.performAndWait {
+            let cutoff = referenceDate.addingTimeInterval(-24 * 60 * 60)
+            let request = TaskItem.fetchRequest()
+            request.predicate = NSPredicate(
+                format: "taskState == %d AND deletedAt <= %@",
+                Int(TaskState.trashed.rawValue),
+                cutoff as NSDate
+            )
 
-        guard let expiredTrashed = try? viewContext.fetch(request), !expiredTrashed.isEmpty else { return }
-        for task in expiredTrashed {
-            viewContext.delete(task)
+            do {
+                let expiredTrashed = try viewContext.fetch(request)
+                guard !expiredTrashed.isEmpty else { return }
+                for task in expiredTrashed {
+                    viewContext.delete(task)
+                }
+                saveWithinContextQueue()
+            } catch {
+                let nsError = error as NSError
+                Self.logger.error("Failed to fetch expired trashed tasks: \(nsError.localizedDescription, privacy: .public)")
+            }
         }
-        save()
     }
 
-    // Returns a task's URI.
+    // Returns the next in-progress expiration date, if any.
+    func nextInProgressExpiration(after referenceDate: Date, onOrBefore upperBound: Date) -> Date? {
+        var result: Date?
+        viewContext.performAndWait {
+            let request = TaskItem.fetchRequest()
+            request.fetchLimit = 1
+            request.sortDescriptors = [NSSortDescriptor(keyPath: \TaskItem.expiresAt, ascending: true)]
+            request.predicate = NSPredicate(
+                format: "taskState == %d AND expiresAt > %@ AND expiresAt <= %@",
+                Int(TaskState.inProgress.rawValue),
+                referenceDate as NSDate,
+                upperBound as NSDate
+            )
+
+            do {
+                result = try viewContext.fetch(request).first?.expiresAt
+            } catch {
+                let nsError = error as NSError
+                Self.logger.error("Failed to fetch next in-progress expiration: \(nsError.localizedDescription, privacy: .public)")
+            }
+        }
+        return result
+    }
+
+    // Returns a task's ID string.
     func taskURI(for task: TaskItem) -> String {
-        task.objectID.uriRepresentation().absoluteString
+        task.id.uuidString
     }
 
-    // Returns a task for a given URI.
+    // Returns a task for a given ID string.
     func task(for uri: String) -> TaskItem? {
-        guard
-            let coordinator = viewContext.persistentStoreCoordinator,
-            let url = URL(string: uri),
-            let objectID = coordinator.managedObjectID(forURIRepresentation: url)
-        else {
-            return nil
+        guard let taskID = UUID(uuidString: uri) else { return nil }
+        var result: TaskItem?
+        viewContext.performAndWait {
+            let request = TaskItem.fetchRequest()
+            request.fetchLimit = 1
+            request.predicate = NSPredicate(format: "id == %@", taskID as CVarArg)
+            result = try? viewContext.fetch(request).first
         }
-        return try? viewContext.existingObject(with: objectID) as? TaskItem
+        return result
     }
 
     // Saves the view context.
     private func save() {
+        viewContext.performAndWait {
+            saveWithinContextQueue()
+        }
+    }
+
+    // Saves the view context on its own queue.
+    private func saveWithinContextQueue() {
+        guard viewContext.hasChanges else { return }
         do {
             try viewContext.save()
         } catch {
             let nsError = error as NSError
-            fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
+            viewContext.rollback()
+            let message = saveFailureMessage(from: nsError)
+            Self.logger.error("Save failed: \(message, privacy: .public)")
+            notificationsViewModel.notifyAppError(message)
         }
+    }
+
+    // Provides an app-facing save error message.
+    private func saveFailureMessage(from error: NSError) -> String {
+        if error.domain == NSCocoaErrorDomain {
+            switch error.code {
+                case NSFileWriteOutOfSpaceError:
+                    return "Could not save tasks because device storage is full."
+                case NSFileWriteNoPermissionError:
+                    return "Could not save tasks because storage is currently locked or unavailable."
+                default:
+                    break
+            }
+        }
+        return "Could not save tasks (\(error.localizedDescription))."
     }
 
     // Calculates a task's sort order based on its position in the list.

@@ -281,7 +281,9 @@ struct ExpirationChipsView: View {
 
     // Provides a time chip.
     private var timeChip: some View {
-        DatePicker(
+        let now = Date()
+        let upperBound = max(TaskItem.endOfDay(for: now), now)
+        return DatePicker(
             "",
             selection: Binding(
                 get: { expiresAt },
@@ -289,7 +291,7 @@ struct ExpirationChipsView: View {
                     setCustom(newValue)
                 }
             ),
-            in: Date()...endOfDay,
+            in: now...upperBound,
             displayedComponents: [.hourAndMinute]
         )
         .labelsHidden()

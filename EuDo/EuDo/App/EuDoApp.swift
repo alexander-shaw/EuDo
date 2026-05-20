@@ -19,8 +19,11 @@ struct EuDoApp: App {
                 .task {
                     await NotificationsPermissionViewModel()
                         .requestAuthorizationIfNeeded()  // Requests notification authorization, if needed, at app launch.
-                    TaskListViewModel(viewContext: persistenceController.container.viewContext)  // Deletes expired trashed tasks at app launch.
-                        .deleteExpiredTrashedTasks()  
+                    let viewModel = TaskListViewModel(viewContext: persistenceController.container.viewContext)
+                    let startOfToday = Calendar.current.startOfDay(for: Date())
+                    viewModel.expireOverdueTasks(before: startOfToday)
+                    viewModel.deleteExpiredTrashedTasks()  // Deletes expired trashed tasks at app launch.
+                    // TODO: Show a blocking recovery screen for persistent-store failures (refresh/update flow) instead of only logging.
                 }
         }
     }

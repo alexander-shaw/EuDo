@@ -10,6 +10,7 @@ import UserNotifications
 
 // Provides a notifications view model.
 struct NotificationsViewModel {
+    private static let appErrorNotificationID = "app-error-notification"
     private let center: UNUserNotificationCenter
 
     init(center: UNUserNotificationCenter = .current()) {
@@ -43,6 +44,22 @@ struct NotificationsViewModel {
     func reschedule(taskURI: String, taskName: String, totalSeconds: Int64) {
         cancel(taskURI: taskURI)
         schedule(taskURI: taskURI, taskName: taskName, totalSeconds: totalSeconds)
+    }
+
+    // Schedules a best-effort local notification for an app-level error.
+    func notifyAppError(_ message: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Error"
+        content.body = message
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: Self.appErrorNotificationID,
+            content: content,
+            trigger: trigger
+        )
+        center.add(request)
     }
 
     // Predicts a notification delay based on the total seconds.

@@ -27,6 +27,7 @@ class TaskItem: NSManagedObject {
         super.awakeFromInsert()
 
         let now = Date()
+        id = UUID()
         name = "New Task"
         createdAt = now
         lastUpdatedAt = now
@@ -46,7 +47,7 @@ class TaskItem: NSManagedObject {
     static func endOfDay(for date: Date, calendar: Calendar = .current) -> Date {
         let start = dayStart(for: date, calendar: calendar)
         let startOfNextDay = calendar.date(byAdding: .day, value: 1, to: start) ?? start
-        return calendar.date(byAdding: .second, value: -1, to: startOfNextDay) ?? date
+        return calendar.date(byAdding: .nanosecond, value: -1, to: startOfNextDay) ?? date
     }
 
     // Provides a day bounds.
@@ -59,6 +60,7 @@ class TaskItem: NSManagedObject {
 
 // Provides an identifiable task item.
 extension TaskItem: Identifiable {
+    @NSManaged var id: UUID
     @NSManaged var name: String
     @NSManaged var taskState: Int16
     @NSManaged var totalSeconds: Int64
