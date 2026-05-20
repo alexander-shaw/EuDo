@@ -1,8 +1,6 @@
 # EuDo
 
-A minimal, fully offline, today-only todo app built in SwiftUI.
-
-Yes, the name is inspired by Eulerity's name, which itself comes from Euler.
+A minimal, fully offline, today-only todo app built in SwiftUI.  Inspired by Eulerity's name, which itself comes from Euler.
 
 [https://docs.google.com/document/d/1PcQ7OrmRV_dfHPgK_PWXjHShWLEHPrPt3WwKYnrx33w/edit?usp=sharing](https://docs.google.com/document/d/1PcQ7OrmRV_dfHPgK_PWXjHShWLEHPrPt3WwKYnrx33w/edit?usp=sharing)
 
