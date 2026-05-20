@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+// Provides a reusable title view with leading, trailing, and bottom content.
 public struct TitleView<Leading: View, Trailing: View, Bottom: View>: View {
     public let titleText: String
     public var moreSpace: Bool = false

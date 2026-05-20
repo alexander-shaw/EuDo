@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+// Provides a task state toggle view.
 struct TaskStateToggleView: View {
     @ObservedObject var task: TaskItem
     var referenceDate: Date
@@ -21,6 +22,7 @@ struct TaskStateToggleView: View {
     }
 
     var body: some View {
+        // Provides a timeline view for the toggle.
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
             let now = timeline.date
             Button {
@@ -36,6 +38,7 @@ struct TaskStateToggleView: View {
         }
     }
 
+    // Provides a toggle visual.
     @ViewBuilder
     private func toggleVisual(at date: Date) -> some View {
         switch task.state {
@@ -73,6 +76,7 @@ struct TaskStateToggleView: View {
         }
     }
 
+    // Provides a countdown progress.
     private func countdownProgress(at date: Date) -> Double? {
         guard isCurrentDay, task.state == .inProgress else { return nil }
 
@@ -86,6 +90,7 @@ struct TaskStateToggleView: View {
         return clampedRemaining / total
     }
 
+    // Checks if a task can be toggled.
     private func canToggle(at date: Date) -> Bool {
         guard isCurrentDay else { return false }
         switch task.state {

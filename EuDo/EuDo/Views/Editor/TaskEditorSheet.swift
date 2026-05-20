@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+// Provides a task editor sheet for new/edited tasks.
 struct TaskEditorSheet: View {
     let title: String
     @Binding var name: String

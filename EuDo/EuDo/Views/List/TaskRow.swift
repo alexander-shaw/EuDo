@@ -7,11 +7,12 @@
 
 import SwiftUI
 
+// Provides a task row.
 struct TaskRow: View {
-    @ObservedObject var task: TaskItem
-    var referenceDate: Date = Date()
-    var showsCreatedDate: Bool = false
-    var onToggle: (() -> Void)?
+    @ObservedObject var task: TaskItem  // The task.
+    var referenceDate: Date = Date()  // The reference date.
+    var showsCreatedDate: Bool = false  // Whether to show the created date.
+    var onToggle: (() -> Void)?  // The action to perform when the task state is toggled.
 
     var body: some View {
         HStack(alignment: .center, spacing: AppSpacing.small + 2) {
@@ -37,6 +38,7 @@ struct TaskRow: View {
         .padding(.vertical, AppSpacing.small)
     }
 
+    // Provides a subtitle text.
     private var subtitleText: String {
         let expiryText = timeFormatter.string(from: task.expiresAt)
         guard showsCreatedDate else { return expiryText }
@@ -45,6 +47,7 @@ struct TaskRow: View {
     }
 }
 
+// Provides a time formatter.
 private let timeFormatter: DateFormatter = {
     let formatter = DateFormatter()
     formatter.dateStyle = .none
@@ -52,6 +55,7 @@ private let timeFormatter: DateFormatter = {
     return formatter
 }()
 
+// Provides a month day formatter.
 private let monthDayFormatter: DateFormatter = {
     let formatter = DateFormatter()
     formatter.dateFormat = "M/d"

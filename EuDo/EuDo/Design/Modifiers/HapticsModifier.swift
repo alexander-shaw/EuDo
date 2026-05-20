@@ -45,25 +45,3 @@ public extension View {
         modifier(HapticFeedbackModifier(style))
     }
 }
-
-// Haptic only when isEnabled is true (carousel with multiple items).
-public struct ConditionalHapticFeedbackModifier: ViewModifier {
-    private let style: HapticFeedbackModifier.Style
-    private let isEnabled: Bool
-
-    public init(style: HapticFeedbackModifier.Style, isEnabled: Bool) {
-        self.style = style
-        self.isEnabled = isEnabled
-    }
-
-    public func body(content: Content) -> some View {
-        content.simultaneousGesture(TapGesture().onEnded {
-            guard isEnabled else { return }
-            DispatchQueue.main.async {
-                let g = UIImpactFeedbackGenerator(style: style.generator)
-                g.prepare()
-                g.impactOccurred()
-            }
-        })
-    }
-}

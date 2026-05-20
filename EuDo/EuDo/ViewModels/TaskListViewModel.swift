@@ -11,7 +11,8 @@ import CoreData
 struct TaskListViewModel {
     let viewContext: NSManagedObjectContext
 
-    func createTask(name: String, expiresAt: Date, insertAfterIndex: Int?, existingItems: [TaskItem]) {
+    // Creates a new task and returns its URI.
+    func createTask(name: String, expiresAt: Date, insertAfterIndex: Int?, existingItems: [TaskItem]) -> String {
         let now = Date()
         let newItem = TaskItem(context: viewContext)
         newItem.name = name
@@ -19,20 +20,25 @@ struct TaskListViewModel {
         newItem.expiresAt = expiresAt
         newItem.lastUpdatedAt = now
         newItem.deletedAt = TaskItem.endOfDay(for: now)
+        newItem.totalSeconds = Self.totalSeconds(until: expiresAt, referenceDate: now)
         newItem.state = .inProgress
         newItem.sortOrder = Self.sortOrder(insertAfter: insertAfterIndex, in: existingItems)
         save()
+        return taskURI(for: newItem)
     }
 
-    func updateTask(uri: String, name: String, expiresAt: Date, referenceDate: Date = Date()) {
+    // Updates a task and returns its URI.
+    func updateTask(uri: String, name: String, expiresAt: Date, referenceDate: Date = Date()) -> String {
         guard let task = task(for: uri) else { return }
         task.name = name
         task.expiresAt = expiresAt
         task.lastUpdatedAt = referenceDate
+        task.totalSeconds = Self.totalSeconds(until: expiresAt, referenceDate: referenceDate)
         reconcileStateAfterUpdate(task, referenceDate: referenceDate)
         save()
     }
 
+    // Moves tasks and returns their new URIs.
     func moveTasks(fromOffsets: IndexSet, toOffset: Int, existingItems: [TaskItem]) {
         guard !fromOffsets.isEmpty, !existingItems.isEmpty else { return }
 
@@ -57,6 +63,7 @@ struct TaskListViewModel {
         save()
     }
 
+    // Expires overdue tasks.
     func expireOverdueTasks(before dayStart: Date) {
         let request = TaskItem.fetchRequest()
         request.predicate = NSPredicate(
@@ -73,6 +80,7 @@ struct TaskListViewModel {
         save()
     }
 
+    // Marks expired tasks as timesUp.
     func markExpiredTasksTimesUp(now: Date) {
         let bounds = TaskItem.dayBounds(for: now)
         let request = TaskItem.fetchRequest()
@@ -91,6 +99,7 @@ struct TaskListViewModel {
         save()
     }
 
+    // Toggles a task's completion state and returns its URI.
     func toggleCompletion(uri: String, referenceDate: Date) {
         guard let task = task(for: uri) else { return }
         let bounds = TaskItem.dayBounds(for: referenceDate)
@@ -117,6 +126,7 @@ struct TaskListViewModel {
         save()
     }
 
+    // Reconciles a task's state after an update.
     private func reconcileStateAfterUpdate(_ task: TaskItem, referenceDate: Date) {
         switch task.state {
             case .timesUp:
@@ -134,6 +144,7 @@ struct TaskListViewModel {
         }
     }
 
+    // Soft deletes a task and returns its URI.
     func softDelete(uri: String) {
         guard let task = task(for: uri) else { return }
         let now = Date()
@@ -143,6 +154,14 @@ struct TaskListViewModel {
         save()
     }
 
+    // Hard deletes a task.
+    func deleteForever(uri: String) {
+        guard let task = task(for: uri) else { return }
+        viewContext.delete(task)
+        save()
+    }
+
+    // Hard deletes expired trashed tasks.
     func deleteExpiredTrashedTasks(referenceDate: Date = Date()) {
         let cutoff = referenceDate.addingTimeInterval(-24 * 60 * 60)
         let request = TaskItem.fetchRequest()
@@ -159,10 +178,12 @@ struct TaskListViewModel {
         save()
     }
 
+    // Returns a task's URI.
     func taskURI(for task: TaskItem) -> String {
         task.objectID.uriRepresentation().absoluteString
     }
 
+    // Returns a task for a given URI.
     func task(for uri: String) -> TaskItem? {
         guard
             let coordinator = viewContext.persistentStoreCoordinator,
@@ -174,6 +195,7 @@ struct TaskListViewModel {
         return try? viewContext.existingObject(with: objectID) as? TaskItem
     }
 
+    // Saves the view context.
     private func save() {
         do {
             try viewContext.save()
@@ -183,6 +205,7 @@ struct TaskListViewModel {
         }
     }
 
+    // Calculates a task's sort order based on its position in the list.
     static func sortOrder(insertAfter index: Int?, in items: [TaskItem]) -> Double {
         guard !items.isEmpty else { return 0 }
 
@@ -207,5 +230,10 @@ struct TaskListViewModel {
         }
 
         return midpoint
+    }
+
+    // Calculates a task's total seconds based on its expiration date and reference date.
+    static func totalSeconds(until expiresAt: Date, referenceDate: Date) -> Int64 {
+        Int64(max(0, expiresAt.timeIntervalSince(referenceDate)))
     }
 }

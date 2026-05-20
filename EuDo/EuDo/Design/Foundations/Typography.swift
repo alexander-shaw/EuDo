@@ -8,6 +8,7 @@
 import SwiftUI
 import UIKit
 
+// Provides typography tokens for the app.
 enum AppTypography {
     private static let bodyTextSize: CGFloat = 18
 

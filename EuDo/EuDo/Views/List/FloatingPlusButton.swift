@@ -7,8 +7,9 @@
 
 import SwiftUI
 
+// Provides a floating plus button.
 struct FloatingPlusButton: View {
-    var onAdd: () -> Void
+    var onAdd: () -> Void  // The action to perform when the plus button is tapped.
 
     private let iconPadding = AppSpacing.medium + 2
 

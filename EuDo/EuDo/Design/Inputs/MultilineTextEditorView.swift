@@ -8,6 +8,7 @@
 import SwiftUI
 import UIKit
 
+// Provides a multiline text editor view.
 struct MultilineTextEditorView: View {
     @Binding var text: String
     let placeholder: String
@@ -33,6 +34,7 @@ struct MultilineTextEditorView: View {
     }
 }
 
+// Provides a UIKit text view.
 private struct UIKitTextView: UIViewRepresentable {
     @Binding var text: String
     let autofocus: Bool
@@ -40,6 +42,7 @@ private struct UIKitTextView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
+    // Creates a UIKit text view.
     func makeUIView(context: Context) -> UITextView {
         let tv = UITextView()
         tv.delegate = context.coordinator
@@ -63,6 +66,7 @@ private struct UIKitTextView: UIViewRepresentable {
         return tv
     }
 
+    // Updates a UIKit text view.
     func updateUIView(_ uiView: UITextView, context: Context) {
         if !context.coordinator.isApplyingLocalChange {
             if text != context.coordinator.lastEmittedText, uiView.text != text {
@@ -74,6 +78,7 @@ private struct UIKitTextView: UIViewRepresentable {
         }
     }
 
+    // Provides a coordinator for the UIKit text view.
     final class Coordinator: NSObject, UITextViewDelegate {
         private let parent: UIKitTextView
         var lastEmittedText: String = ""

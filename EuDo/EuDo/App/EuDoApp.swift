@@ -15,10 +15,12 @@ struct EuDoApp: App {
     var body: some Scene {
         WindowGroup {
             TaskListView()
-                .environment(\.managedObjectContext, persistenceController.container.viewContext)
+                .environment(\.managedObjectContext, persistenceController.container.viewContext)  // Provides the view context to the TaskListView.
                 .task {
-                    TaskListViewModel(viewContext: persistenceController.container.viewContext)
-                        .deleteExpiredTrashedTasks()  // Deletes expired trashed tasks at app launch.
+                    await NotificationsPermissionViewModel()
+                        .requestAuthorizationIfNeeded()  // Requests notification authorization, if needed, at app launch.
+                    TaskListViewModel(viewContext: persistenceController.container.viewContext)  // Deletes expired trashed tasks at app launch.
+                        .deleteExpiredTrashedTasks()  
                 }
         }
     }

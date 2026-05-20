@@ -7,6 +7,7 @@
 
 import CoreGraphics
 
+// Provides spacing tokens for the app.
 enum AppSpacing {
     static let xxSmall: CGFloat = 4
     static let xSmall: CGFloat = 8

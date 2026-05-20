@@ -7,10 +7,12 @@
 
 import Foundation
 
+// Provides a task list scope.
 enum TaskListScope: String, CaseIterable {
-    case today
-    case history
+    case today  // The current day.
+    case history  // All history.
 
+    // Provides a title for the task list scope.
     var title: String {
         switch self {
             case .today:
@@ -21,6 +23,7 @@ enum TaskListScope: String, CaseIterable {
     }
 }
 
+// Provides a task state title.
 extension TaskState {
     var title: String {
         switch self {
@@ -40,6 +43,7 @@ extension TaskState {
     }
 }
 
+// Provides a task state visibility mask.
 extension Set where Element == TaskState {
     static let defaultTodayVisibility: Set<TaskState> = [.inProgress, .completed]
     static let defaultHistoryVisibility: Set<TaskState> = Set(TaskState.allCases)

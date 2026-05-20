@@ -7,9 +7,10 @@
 
 import SwiftUI
 
+// Provides a reusable empty list view.
 struct EmptyListView: View {
-    let message: String
-    let action: () -> Void
+    let message: String  // The empty list message.
+    let action: () -> Void  // The action to perform when the empty list is tapped.
 
     var body: some View {
         Button(action: action) {

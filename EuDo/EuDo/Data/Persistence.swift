@@ -10,6 +10,7 @@ import CoreData
 struct PersistenceController {
     static let shared = PersistenceController()
 
+    // Provides a preview persistence controller for testing.
     @MainActor
     static let preview: PersistenceController = {
         let result = PersistenceController(inMemory: true)
@@ -22,6 +23,7 @@ struct PersistenceController {
             newItem.expiresAt = TaskItem.endOfDay(for: now)
             newItem.lastUpdatedAt = now
             newItem.deletedAt = TaskItem.endOfDay(for: now)
+            newItem.totalSeconds = Int64(max(0, newItem.expiresAt.timeIntervalSince(now)))
             newItem.sortOrder = Double(index)
             newItem.state = .inProgress
         }
@@ -37,8 +39,10 @@ struct PersistenceController {
         return result
     }()
 
+    // Provides a persistent container for the app.
     let container: NSPersistentContainer
 
+    // Initializes the persistent container.
     init(inMemory: Bool = false) {
         container = NSPersistentContainer(name: "EuDo")
         if inMemory {

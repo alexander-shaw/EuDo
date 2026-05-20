@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+// Provides semantic color tokens mapped to asset color names.
 extension Color {
     static let backgroundColor = Color("BackgroundColor")
     static let surfaceColor = Color("SurfaceColor")

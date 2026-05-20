@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+// Provides an expiration chips view.
 struct ExpirationChipsView: View {
     @Binding var expiresAt: Date
     @State private var selection: Selection = .endOfDay
@@ -24,6 +25,7 @@ struct ExpirationChipsView: View {
         case custom(seconds: TimeInterval)
     }
 
+    // Provides duration presets.
     private static let durationPresets: [(label: String, seconds: TimeInterval)] = [
         ("12h", 12 * 3600),
         ("6h", 6 * 3600),
@@ -33,6 +35,7 @@ struct ExpirationChipsView: View {
         ("15m", 15 * 60),
     ]
 
+    // Provides available presets.
     private var availablePresets: [(label: String, seconds: TimeInterval)] {
         let now = Date()
         let endOfDay = endOfDay
@@ -82,6 +85,7 @@ struct ExpirationChipsView: View {
         .hapticFeedback(.light)
     }
 
+    // Provides a duration chip.
     private struct DurationChip: Identifiable {
         enum Kind: Equatable {
             case preset(seconds: TimeInterval)
@@ -94,6 +98,7 @@ struct ExpirationChipsView: View {
         let kind: Kind
     }
 
+    // Provides duration chips.
     private var durationChips: [DurationChip] {
         var chips = availablePresets.map {
             DurationChip(
@@ -121,6 +126,7 @@ struct ExpirationChipsView: View {
         return chips
     }
 
+    // Formats a duration label.
     private func formatDurationLabel(seconds: TimeInterval) -> String {
         let totalMinutes = max(Int((seconds / 60).rounded()), 0)
         let hours = totalMinutes / 60
@@ -135,6 +141,7 @@ struct ExpirationChipsView: View {
         return "\(hours)h \(minutes)m"
     }
 
+    // Initializes the selection if needed.
     private func initializeSelectionIfNeeded() {
         guard !hasInitializedSelection else { return }
         hasInitializedSelection = true
@@ -154,11 +161,13 @@ struct ExpirationChipsView: View {
         selection = .custom(seconds: roundToNearestMinute(max(remaining, 0)))
     }
 
+    // Rounds a duration to the nearest minute.
     private func roundToNearestMinute(_ seconds: TimeInterval) -> TimeInterval {
         let minutes = (seconds / 60).rounded()
         return max(0, minutes) * 60
     }
 
+    // Checks if a duration chip is selected.
     private func isSelected(_ chip: DurationChip) -> Bool {
         switch (selection, chip.kind) {
             case (.preset(let selectedSeconds), .preset(let seconds)):
@@ -170,6 +179,7 @@ struct ExpirationChipsView: View {
         }
     }
 
+    // Handles a duration chip tap.
     private func handleTap(_ chip: DurationChip) {
         switch chip.kind {
             case .preset(let seconds):
@@ -179,16 +189,19 @@ struct ExpirationChipsView: View {
         }
     }
 
+    // Sets the end of day selection.
     private func setEod() {
         selection = .endOfDay
         expiresAt = endOfDay
     }
 
+    // Sets a preset selection.
     private func setPreset(_ seconds: TimeInterval) {
         selection = .preset(seconds: seconds)
         expiresAt = Date().addingTimeInterval(seconds)
     }
 
+    // Sets a custom selection.
     private func setCustom(_ newValue: Date) {
         let now = Date()
         let endOfDay = endOfDay
@@ -209,6 +222,7 @@ struct ExpirationChipsView: View {
         expiresAt = newValue
     }
 
+    // Provides a time chip.
     private var timeChip: some View {
         DatePicker(
             "",
@@ -228,6 +242,7 @@ struct ExpirationChipsView: View {
         .hapticFeedback(.light)
     }
 
+    // Checks if a custom selection is active.
     private var isCustomSelected: Bool {
         if case .custom = selection { return true }
         return false

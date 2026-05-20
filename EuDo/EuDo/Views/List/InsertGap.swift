@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+// Provides a reusable insert gap view for adding a new task between existing tasks.
 struct InsertGap: View {
     var height: CGFloat = AppSpacing.xxLarge
     var action: () -> Void
